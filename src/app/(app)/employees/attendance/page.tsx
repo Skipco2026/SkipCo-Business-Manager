@@ -322,6 +322,7 @@ export default function AttendancePage() {
 
   useEffect(() => {
     void initialise();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function initialise() {
@@ -1087,7 +1088,7 @@ export default function AttendancePage() {
                 </h2>
 
                 <p className="mt-1 text-sm text-charcoal-500">
-                  Enter the employee's actual
+                  Enter the employee&apos;s actual
                   working times. The record will
                   remain pending until management
                   approves it.

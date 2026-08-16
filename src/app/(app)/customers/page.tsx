@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -31,9 +32,9 @@ export default function CustomersPage() {
       .order("company_name");
 
     if (error) {
-      console.error(error);
+      console.error("Customers loading error:", error);
     } else {
-      setCustomers(data as Customer[]);
+      setCustomers((data ?? []) as Customer[]);
     }
 
     setLoading(false);
@@ -60,8 +61,10 @@ export default function CustomersPage() {
     (customer) => (customer.status ?? "Active") === "Active"
   ).length;
 
-  const newCustomers = customers.filter((customer: any) => {
-    if (!customer.created_at) return false;
+  const newCustomers = customers.filter((customer) => {
+    if (!customer.created_at) {
+      return false;
+    }
 
     const created = new Date(customer.created_at);
     const today = new Date();
@@ -72,7 +75,7 @@ export default function CustomersPage() {
     );
   }).length;
 
-  const totalCreditLimit = customers.reduce((total: number, customer: any) => {
+  const totalCreditLimit = customers.reduce((total, customer) => {
     return total + Number(customer.credit_limit ?? 0);
   }, 0);
 
@@ -81,18 +84,15 @@ export default function CustomersPage() {
       title="Customers"
       subtitle="Manage your customer database"
     >
-      <div className="flex items-center justify-between mb-8">
-
+      <div className="mb-8 flex items-center justify-between">
         <div>
-
           <h1 className="text-3xl font-bold">
             Customers
           </h1>
 
-          <p className="text-gray-500 mt-1">
+          <p className="mt-1 text-gray-500">
             Manage all customer accounts
           </p>
-
         </div>
 
         <Link
@@ -101,7 +101,6 @@ export default function CustomersPage() {
         >
           + Add Customer
         </Link>
-
       </div>
 
       <CustomerSummary

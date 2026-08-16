@@ -1,6 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import {
   ArrowLeft,
   Check,
@@ -40,6 +45,10 @@ interface Permission {
   created_at: string;
 }
 
+interface RolePermissionRow {
+  permission_id: string;
+}
+
 const standardRoles = [
   "Owner",
   "Manager",
@@ -49,11 +58,12 @@ const standardRoles = [
 ];
 
 export default function RolesPermissionsPage() {
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
   const [roles, setRoles] = useState<Role[]>([]);
   const [permissions, setPermissions] = useState<Permission[]>([]);
-  const [selectedRole, setSelectedRole] = useState<Role | null>(null);
+  const [selectedRole, setSelectedRole] =
+    useState<Role | null>(null);
 
   const [selectedPermissions, setSelectedPermissions] =
     useState<Set<string>>(new Set());
@@ -74,11 +84,88 @@ export default function RolesPermissionsPage() {
   const [expandedModules, setExpandedModules] =
     useState<Set<string>>(new Set());
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  const getPermissionModule = useCallback(
+    (key: string): string => {
+      const moduleName = key.split(".")[0];
 
-  async function loadData() {
+      const names: Record<string, string> = {
+        dashboard: "Dashboard",
+        customers: "Customers",
+        quotes: "Quotes",
+        invoices: "Invoices",
+        statements: "Statements",
+        jobs: "Jobs",
+        employees: "Employees",
+        payroll: "Payroll",
+        attendance: "Attendance",
+        leave: "Leave",
+        contractors: "Contractors",
+        reports: "Reports",
+        settings: "Settings",
+        audit: "Audit Log",
+      };
+
+      return (
+        names[moduleName] ??
+        moduleName.charAt(0).toUpperCase() +
+          moduleName.slice(1)
+      );
+    },
+    []
+  );
+
+  const selectRole = useCallback(
+    async (role: Role) => {
+      setSelectedRole(role);
+      setError("");
+      setSuccess("");
+
+      const { data, error: permissionError } =
+        await supabase
+          .from("role_permissions")
+          .select("permission_id")
+          .eq("role_id", role.id);
+
+      if (permissionError) {
+        console.error(
+          "Role permissions loading error:",
+          permissionError
+        );
+
+        setError(
+          `Unable to load role permissions: ${permissionError.message}`
+        );
+
+        return;
+      }
+
+      const permissionRows =
+        (data ?? []) as RolePermissionRow[];
+
+      const permissionIds = new Set<string>(
+        permissionRows.map(
+          (item) => item.permission_id
+        )
+      );
+
+      setSelectedPermissions(permissionIds);
+
+      const modules = new Set<string>();
+
+      permissions.forEach((permission) => {
+        if (permissionIds.has(permission.id)) {
+          modules.add(
+            getPermissionModule(permission.key)
+          );
+        }
+      });
+
+      setExpandedModules(modules);
+    },
+    [getPermissionModule, permissions, supabase]
+  );
+
+  const loadData = useCallback(async () => {
     setLoading(true);
     setError("");
 
@@ -132,84 +219,29 @@ export default function RolesPermissionsPage() {
     setRoles(loadedRoles);
     setPermissions(loadedPermissions);
 
-    if (!selectedRole && loadedRoles.length > 0) {
-      await selectRole(loadedRoles[0]);
+    if (loadedRoles.length > 0) {
+      const currentRoleStillExists =
+        selectedRole
+          ? loadedRoles.some(
+              (role) =>
+                role.id === selectedRole.id
+            )
+          : false;
+
+      if (!currentRoleStillExists) {
+        await selectRole(loadedRoles[0]);
+      }
+    } else {
+      setSelectedRole(null);
+      setSelectedPermissions(new Set());
     }
 
     setLoading(false);
-  }
+  }, [selectRole, selectedRole, supabase]);
 
-  async function selectRole(role: Role) {
-    setSelectedRole(role);
-    setError("");
-    setSuccess("");
-
-    const { data, error } = await supabase
-      .from("role_permissions")
-      .select("permission_id")
-      .eq("role_id", role.id);
-
-    if (error) {
-      console.error(
-        "Role permissions loading error:",
-        error
-      );
-
-      setError(
-        `Unable to load role permissions: ${error.message}`
-      );
-
-      return;
-    }
-
-    const permissionIds = new Set<string>(
-      (data ?? []).map(
-        (item: { permission_id: string }) =>
-          item.permission_id
-      )
-    );
-
-    setSelectedPermissions(permissionIds);
-
-    const modules = new Set<string>();
-
-    permissions.forEach((permission) => {
-      if (permissionIds.has(permission.id)) {
-        modules.add(
-          getPermissionModule(permission.key)
-        );
-      }
-    });
-
-    setExpandedModules(modules);
-  }
-
-  function getPermissionModule(key: string) {
-    const module = key.split(".")[0];
-
-    const names: Record<string, string> = {
-      dashboard: "Dashboard",
-      customers: "Customers",
-      quotes: "Quotes",
-      invoices: "Invoices",
-      statements: "Statements",
-      jobs: "Jobs",
-      employees: "Employees",
-      payroll: "Payroll",
-      attendance: "Attendance",
-      leave: "Leave",
-      contractors: "Contractors",
-      reports: "Reports",
-      settings: "Settings",
-      audit: "Audit Log",
-    };
-
-    return (
-      names[module] ??
-      module.charAt(0).toUpperCase() +
-        module.slice(1)
-    );
-  }
+  useEffect(() => {
+    void loadData();
+  }, [loadData]);
 
   const groupedPermissions = useMemo(() => {
     const groups: Record<
@@ -218,18 +250,18 @@ export default function RolesPermissionsPage() {
     > = {};
 
     permissions.forEach((permission) => {
-      const module =
+      const moduleName =
         getPermissionModule(permission.key);
 
-      if (!groups[module]) {
-        groups[module] = [];
+      if (!groups[moduleName]) {
+        groups[moduleName] = [];
       }
 
-      groups[module].push(permission);
+      groups[moduleName].push(permission);
     });
 
     return groups;
-  }, [permissions]);
+  }, [permissions, getPermissionModule]);
 
   function togglePermission(
     permissionId: string
@@ -249,14 +281,14 @@ export default function RolesPermissionsPage() {
     setSuccess("");
   }
 
-  function toggleModule(module: string) {
+  function toggleModule(moduleName: string) {
     setExpandedModules((current) => {
       const next = new Set(current);
 
-      if (next.has(module)) {
-        next.delete(module);
+      if (next.has(moduleName)) {
+        next.delete(moduleName);
       } else {
-        next.add(module);
+        next.add(moduleName);
       }
 
       return next;
@@ -275,6 +307,8 @@ export default function RolesPermissionsPage() {
 
       return next;
     });
+
+    setSuccess("");
   }
 
   function clearModule(
@@ -289,6 +323,8 @@ export default function RolesPermissionsPage() {
 
       return next;
     });
+
+    setSuccess("");
   }
 
   async function savePermissions() {
@@ -379,23 +415,24 @@ export default function RolesPermissionsPage() {
       return;
     }
 
-    const { data, error } = await supabase
-      .from("roles")
-      .insert({
-        name,
-        description: description || null,
-      })
-      .select()
-      .single();
+    const { data, error: createError } =
+      await supabase
+        .from("roles")
+        .insert({
+          name,
+          description: description || null,
+        })
+        .select()
+        .single();
 
-    if (error) {
+    if (createError) {
       console.error(
         "Role creation error:",
-        error
+        createError
       );
 
       setError(
-        `Unable to create role: ${error.message}`
+        `Unable to create role: ${createError.message}`
       );
 
       return;
@@ -403,11 +440,14 @@ export default function RolesPermissionsPage() {
 
     const newRole = data as Role;
 
-    setRoles((current) =>
-      [...current, newRole].sort((a, b) =>
-        a.name.localeCompare(b.name)
-      )
+    const updatedRoles = [
+      ...roles,
+      newRole,
+    ].sort((a, b) =>
+      a.name.localeCompare(b.name)
     );
+
+    setRoles(updatedRoles);
 
     setSelectedRole(newRole);
     setSelectedPermissions(new Set());
@@ -448,19 +488,20 @@ export default function RolesPermissionsPage() {
     setError("");
     setSuccess("");
 
-    const { error } = await supabase
-      .from("roles")
-      .delete()
-      .eq("id", selectedRole.id);
+    const { error: deleteError } =
+      await supabase
+        .from("roles")
+        .delete()
+        .eq("id", selectedRole.id);
 
-    if (error) {
+    if (deleteError) {
       console.error(
         "Role deletion error:",
-        error
+        deleteError
       );
 
       setError(
-        `Unable to delete role: ${error.message}`
+        `Unable to delete role: ${deleteError.message}`
       );
 
       return;
@@ -473,13 +514,12 @@ export default function RolesPermissionsPage() {
 
     setRoles(remainingRoles);
 
-    setSelectedRole(
-      remainingRoles.length > 0
-        ? remainingRoles[0]
-        : null
-    );
-
-    setSelectedPermissions(new Set());
+    if (remainingRoles.length > 0) {
+      await selectRole(remainingRoles[0]);
+    } else {
+      setSelectedRole(null);
+      setSelectedPermissions(new Set());
+    }
 
     setSuccess(
       "Role deleted successfully."
@@ -499,8 +539,6 @@ export default function RolesPermissionsPage() {
 
       <div className="space-y-6">
 
-        {/* BACK */}
-
         <Link
           href="/settings"
           className="inline-flex items-center gap-2 text-sm font-medium text-charcoal-500 transition hover:text-charcoal-900"
@@ -509,16 +547,12 @@ export default function RolesPermissionsPage() {
           Back to Settings
         </Link>
 
-        {/* SUCCESS */}
-
         {success && (
           <div className="flex items-center gap-2 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
             <Check className="h-4 w-4" />
             {success}
           </div>
         )}
-
-        {/* ERROR */}
 
         {error && (
           <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -536,8 +570,6 @@ export default function RolesPermissionsPage() {
           </div>
         ) : (
           <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
-
-            {/* ROLES */}
 
             <Card>
               <CardHeader>
@@ -579,7 +611,7 @@ export default function RolesPermissionsPage() {
                         key={role.id}
                         type="button"
                         onClick={() =>
-                          selectRole(role)
+                          void selectRole(role)
                         }
                         className={`w-full rounded-xl border px-4 py-3 text-left transition ${
                           active
@@ -611,8 +643,6 @@ export default function RolesPermissionsPage() {
               </CardContent>
             </Card>
 
-            {/* PERMISSIONS */}
-
             <Card>
               <CardHeader>
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -637,7 +667,9 @@ export default function RolesPermissionsPage() {
                       ) && (
                         <button
                           type="button"
-                          onClick={deleteRole}
+                          onClick={() =>
+                            void deleteRole()
+                          }
                           className="inline-flex items-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50"
                         >
                           <Trash2 className="h-4 w-4" />
@@ -647,7 +679,9 @@ export default function RolesPermissionsPage() {
 
                       <button
                         type="button"
-                        onClick={savePermissions}
+                        onClick={() =>
+                          void savePermissions()
+                        }
                         disabled={saving}
                         className="inline-flex items-center gap-2 rounded-lg bg-[#20AEB8] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#1897a0] disabled:cursor-not-allowed disabled:opacity-60"
                       >
@@ -701,12 +735,12 @@ export default function RolesPermissionsPage() {
                       groupedPermissions
                     ).map(
                       ([
-                        module,
+                        moduleName,
                         modulePermissions,
                       ]) => {
                         const expanded =
                           expandedModules.has(
-                            module
+                            moduleName
                           );
 
                         const selectedCount =
@@ -725,11 +759,9 @@ export default function RolesPermissionsPage() {
 
                         return (
                           <div
-                            key={module}
+                            key={moduleName}
                             className="overflow-hidden rounded-xl border border-charcoal-100"
                           >
-
-                            {/* MODULE HEADER */}
 
                             <div className="flex items-center justify-between bg-charcoal-50 px-4 py-3">
 
@@ -737,7 +769,7 @@ export default function RolesPermissionsPage() {
                                 type="button"
                                 onClick={() =>
                                   toggleModule(
-                                    module
+                                    moduleName
                                   )
                                 }
                                 className="flex items-center gap-3"
@@ -749,7 +781,7 @@ export default function RolesPermissionsPage() {
                                 )}
 
                                 <span className="text-sm font-semibold text-charcoal-800">
-                                  {module}
+                                  {moduleName}
                                 </span>
 
                                 <span className="rounded-full bg-white px-2 py-0.5 text-xs text-charcoal-500">
@@ -779,8 +811,6 @@ export default function RolesPermissionsPage() {
                               </button>
 
                             </div>
-
-                            {/* PERMISSIONS */}
 
                             {expanded && (
                               <div className="divide-y divide-charcoal-100 bg-white">
@@ -851,8 +881,6 @@ export default function RolesPermissionsPage() {
         )}
 
       </div>
-
-      {/* CREATE ROLE MODAL */}
 
       {showCreateRole && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
@@ -937,7 +965,9 @@ export default function RolesPermissionsPage() {
 
               <button
                 type="button"
-                onClick={createRole}
+                onClick={() =>
+                  void createRole()
+                }
                 className="inline-flex items-center gap-2 rounded-lg bg-[#20AEB8] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#1897a0]"
               >
                 <Plus className="h-4 w-4" />
@@ -949,6 +979,7 @@ export default function RolesPermissionsPage() {
           </div>
         </div>
       )}
+
     </DashboardShell>
   );
 }

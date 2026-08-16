@@ -116,10 +116,7 @@ export default function EmployeesPage() {
     if (loadError) {
       console.error("Employee loading error:", loadError);
 
-      setError(
-        `Unable to load employees: ${loadError.message}`
-      );
-
+      setError(`Unable to load employees: ${loadError.message}`);
       setEmployees([]);
     } else {
       setEmployees((data ?? []) as Employee[]);
@@ -191,9 +188,7 @@ export default function EmployeesPage() {
   }
 
   function generateEmployeeNumber() {
-    const timestamp = Date.now()
-      .toString()
-      .slice(-8);
+    const timestamp = Date.now().toString().slice(-8);
 
     return `EMP-${timestamp}`;
   }
@@ -203,37 +198,24 @@ export default function EmployeesPage() {
     setSuccess("");
 
     if (!form.first_name.trim()) {
-      setError(
-        "Please enter the employee's first name."
-      );
+      setError("Please enter the employee's first name.");
       return;
     }
 
     if (!form.last_name.trim()) {
-      setError(
-        "Please enter the employee's last name."
-      );
+      setError("Please enter the employee's last name.");
       return;
     }
 
     if (!form.hourly_rate.trim()) {
-      setError(
-        "Please enter the employee's hourly rate."
-      );
+      setError("Please enter the employee's hourly rate.");
       return;
     }
 
-    const hourlyRate = Number(
-      form.hourly_rate
-    );
+    const hourlyRate = Number(form.hourly_rate);
 
-    if (
-      !Number.isFinite(hourlyRate) ||
-      hourlyRate < 0
-    ) {
-      setError(
-        "Please enter a valid hourly rate."
-      );
+    if (!Number.isFinite(hourlyRate) || hourlyRate < 0) {
+      setError("Please enter a valid hourly rate.");
       return;
     }
 
@@ -243,65 +225,45 @@ export default function EmployeesPage() {
       first_name: form.first_name.trim(),
       last_name: form.last_name.trim(),
 
-      id_number:
-        form.id_number.trim() || null,
-
-      phone:
-        form.phone.trim() || null,
-
-      email:
-        form.email.trim() || null,
-
+      id_number: form.id_number.trim() || null,
+      phone: form.phone.trim() || null,
+      email: form.email.trim() || null,
       physical_address:
         form.physical_address.trim() || null,
 
-      job_title:
-        form.job_title.trim() || null,
-
-      department:
-        form.department.trim() || null,
+      job_title: form.job_title.trim() || null,
+      department: form.department.trim() || null,
 
       employment_start_date:
         form.employment_start_date || null,
 
-      employment_status:
-        form.employment_status,
+      employment_status: form.employment_status,
 
-      /*
-       * ALL EMPLOYEES ARE HOURLY PAID.
-       */
       pay_type: "Hourly",
 
       hourly_rate: hourlyRate,
 
-      bank_name:
-        form.bank_name.trim() || null,
-
+      bank_name: form.bank_name.trim() || null,
       account_holder:
         form.account_holder.trim() || null,
-
       account_number:
         form.account_number.trim() || null,
-
       branch_code:
         form.branch_code.trim() || null,
-
       account_type:
         form.account_type.trim() || null,
 
       tax_number:
         form.tax_number.trim() || null,
 
-      notes:
-        form.notes.trim() || null,
+      notes: form.notes.trim() || null,
     };
 
     if (editingEmployee) {
-      const { error: updateError } =
-        await supabase
-          .from("employees")
-          .update(employeeData)
-          .eq("id", editingEmployee.id);
+      const { error: updateError } = await supabase
+        .from("employees")
+        .update(employeeData)
+        .eq("id", editingEmployee.id);
 
       if (updateError) {
         console.error(
@@ -317,21 +279,16 @@ export default function EmployeesPage() {
         return;
       }
 
-      setSuccess(
-        "Employee updated successfully."
-      );
+      setSuccess("Employee updated successfully.");
     } else {
-      const employeeNumber =
-        generateEmployeeNumber();
+      const employeeNumber = generateEmployeeNumber();
 
-      const { error: insertError } =
-        await supabase
-          .from("employees")
-          .insert({
-            employee_number:
-              employeeNumber,
-            ...employeeData,
-          });
+      const { error: insertError } = await supabase
+        .from("employees")
+        .insert({
+          employee_number: employeeNumber,
+          ...employeeData,
+        });
 
       if (insertError) {
         console.error(
@@ -360,9 +317,7 @@ export default function EmployeesPage() {
     await loadEmployees();
   }
 
-  async function deleteEmployee(
-    employee: Employee
-  ) {
+  async function deleteEmployee(employee: Employee) {
     const confirmed = window.confirm(
       `Are you sure you want to delete ${employee.first_name} ${employee.last_name}?`
     );
@@ -372,11 +327,10 @@ export default function EmployeesPage() {
     setError("");
     setSuccess("");
 
-    const { error: deleteError } =
-      await supabase
-        .from("employees")
-        .delete()
-        .eq("id", employee.id);
+    const { error: deleteError } = await supabase
+      .from("employees")
+      .delete()
+      .eq("id", employee.id);
 
     if (deleteError) {
       console.error(
@@ -398,9 +352,7 @@ export default function EmployeesPage() {
     await loadEmployees();
   }
 
-  function formatCurrency(
-    value: number | null
-  ) {
+  function formatCurrency(value: number | null) {
     return `R ${Number(value || 0).toLocaleString(
       "en-ZA",
       {
@@ -410,9 +362,7 @@ export default function EmployeesPage() {
     )}`;
   }
 
-  function formatDate(
-    value: string | null
-  ) {
+  function formatDate(value: string | null) {
     if (!value) return "—";
 
     const parts = value.split("-");
@@ -421,45 +371,33 @@ export default function EmployeesPage() {
       return value;
     }
 
-    const [year, month, day] =
-      parts;
+    const [year, month, day] = parts;
 
     return `${day}/${month}/${year}`;
   }
 
-  const activeEmployees =
-    employees.filter(
-      (employee) =>
-        employee.employment_status ===
-        "Active"
-    ).length;
+  const activeEmployees = employees.filter(
+    (employee) =>
+      employee.employment_status === "Active"
+  ).length;
 
-  const hourlyEmployees =
-    employees.filter(
-      (employee) =>
-        employee.employment_status ===
-          "Active" &&
-        employee.pay_type ===
-          "Hourly"
-    ).length;
+  const hourlyEmployees = employees.filter(
+    (employee) =>
+      employee.employment_status === "Active" &&
+      employee.pay_type === "Hourly"
+  ).length;
 
-  const totalHourlyRates =
-    employees
-      .filter(
-        (employee) =>
-          employee.employment_status ===
-            "Active" &&
-          employee.pay_type ===
-            "Hourly"
-      )
-      .reduce(
-        (total, employee) =>
-          total +
-          Number(
-            employee.hourly_rate || 0
-          ),
-        0
-      );
+  const totalHourlyRates = employees
+    .filter(
+      (employee) =>
+        employee.employment_status === "Active" &&
+        employee.pay_type === "Hourly"
+    )
+    .reduce(
+      (total, employee) =>
+        total + Number(employee.hourly_rate || 0),
+      0
+    );
 
   return (
     <DashboardShell
@@ -524,9 +462,7 @@ export default function EmployeesPage() {
 
             <p className="mt-1 text-xs text-charcoal-500">
               Combined hourly rates:{" "}
-              {formatCurrency(
-                totalHourlyRates
-              )}
+              {formatCurrency(totalHourlyRates)}
             </p>
           </div>
 
@@ -558,7 +494,7 @@ export default function EmployeesPage() {
                 </h2>
 
                 <p className="mt-1 text-sm text-charcoal-500">
-                  Enter the employee's information below.
+                  Enter the employee&apos;s information below.
                 </p>
               </div>
 
@@ -741,9 +677,7 @@ export default function EmployeesPage() {
 
                     <input
                       type="date"
-                      value={
-                        form.employment_start_date
-                      }
+                      value={form.employment_start_date}
                       onChange={(event) =>
                         updateField(
                           "employment_start_date",
@@ -760,9 +694,7 @@ export default function EmployeesPage() {
                     </label>
 
                     <select
-                      value={
-                        form.employment_status
-                      }
+                      value={form.employment_status}
                       onChange={(event) =>
                         updateField(
                           "employment_status",
@@ -831,9 +763,7 @@ export default function EmployeesPage() {
                         type="number"
                         min="0"
                         step="0.01"
-                        value={
-                          form.hourly_rate
-                        }
+                        value={form.hourly_rate}
                         onChange={(event) =>
                           updateField(
                             "hourly_rate",
@@ -846,7 +776,7 @@ export default function EmployeesPage() {
                     </div>
 
                     <p className="mt-1 text-xs text-charcoal-500">
-                      This is the employee's normal hourly rate.
+                      This is the employee&apos;s normal hourly rate.
                     </p>
                   </div>
 
@@ -902,9 +832,7 @@ export default function EmployeesPage() {
                     </label>
 
                     <input
-                      value={
-                        form.account_holder
-                      }
+                      value={form.account_holder}
                       onChange={(event) =>
                         updateField(
                           "account_holder",
@@ -921,9 +849,7 @@ export default function EmployeesPage() {
                     </label>
 
                     <input
-                      value={
-                        form.account_number
-                      }
+                      value={form.account_number}
                       onChange={(event) =>
                         updateField(
                           "account_number",
@@ -940,9 +866,7 @@ export default function EmployeesPage() {
                     </label>
 
                     <input
-                      value={
-                        form.branch_code
-                      }
+                      value={form.branch_code}
                       onChange={(event) =>
                         updateField(
                           "branch_code",
@@ -959,9 +883,7 @@ export default function EmployeesPage() {
                     </label>
 
                     <select
-                      value={
-                        form.account_type
-                      }
+                      value={form.account_type}
                       onChange={(event) =>
                         updateField(
                           "account_type",
@@ -1028,9 +950,7 @@ export default function EmployeesPage() {
 
               <button
                 type="button"
-                onClick={() =>
-                  void saveEmployee()
-                }
+                onClick={() => void saveEmployee()}
                 disabled={saving}
                 className="inline-flex items-center gap-2 rounded-lg bg-[#20AEB8] px-5 py-2.5 text-sm font-medium text-white hover:bg-[#1897a0] disabled:cursor-not-allowed disabled:opacity-60"
               >
@@ -1144,117 +1064,106 @@ export default function EmployeesPage() {
 
                 <tbody className="divide-y divide-charcoal-100">
 
-                  {employees.map(
-                    (employee) => (
-                      <tr
-                        key={employee.id}
-                        className="transition hover:bg-charcoal-50/50"
-                      >
+                  {employees.map((employee) => (
+                    <tr
+                      key={employee.id}
+                      className="transition hover:bg-charcoal-50/50"
+                    >
 
-                        <td className="px-6 py-4">
+                      <td className="px-6 py-4">
 
-                          <div className="text-sm font-semibold text-charcoal-900">
-                            {employee.first_name}{" "}
-                            {employee.last_name}
-                          </div>
+                        <div className="text-sm font-semibold text-charcoal-900">
+                          {employee.first_name}{" "}
+                          {employee.last_name}
+                        </div>
 
+                        <div className="mt-1 text-xs text-charcoal-500">
+                          {employee.employee_number}
+                        </div>
+
+                      </td>
+
+                      <td className="px-6 py-4">
+
+                        <div className="text-sm text-charcoal-700">
+                          {employee.job_title || "—"}
+                        </div>
+
+                        {employee.department && (
                           <div className="mt-1 text-xs text-charcoal-500">
-                            {employee.employee_number}
+                            {employee.department}
                           </div>
+                        )}
 
-                        </td>
+                      </td>
 
-                        <td className="px-6 py-4">
+                      <td className="px-6 py-4 text-sm text-charcoal-600">
+                        {formatDate(
+                          employee.employment_start_date
+                        )}
+                      </td>
 
-                          <div className="text-sm text-charcoal-700">
-                            {employee.job_title ||
-                              "—"}
-                          </div>
+                      <td className="px-6 py-4">
 
-                          {employee.department && (
-                            <div className="mt-1 text-xs text-charcoal-500">
-                              {
-                                employee.department
-                              }
-                            </div>
+                        <div className="text-sm font-semibold text-charcoal-900">
+                          {formatCurrency(
+                            employee.hourly_rate
                           )}
+                        </div>
 
-                        </td>
+                        <div className="mt-1 text-xs text-charcoal-500">
+                          per hour
+                        </div>
 
-                        <td className="px-6 py-4 text-sm text-charcoal-600">
-                          {formatDate(
-                            employee.employment_start_date
-                          )}
-                        </td>
+                      </td>
 
-                        <td className="px-6 py-4">
+                      <td className="px-6 py-4">
 
-                          <div className="text-sm font-semibold text-charcoal-900">
-                            {formatCurrency(
-                              employee.hourly_rate
-                            )}
-                          </div>
+                        <span
+                          className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
+                            employee.employment_status ===
+                            "Active"
+                              ? "bg-green-100 text-green-700"
+                              : "bg-charcoal-100 text-charcoal-600"
+                          }`}
+                        >
+                          {employee.employment_status}
+                        </span>
 
-                          <div className="mt-1 text-xs text-charcoal-500">
-                            per hour
-                          </div>
+                      </td>
 
-                        </td>
+                      <td className="px-6 py-4">
 
-                        <td className="px-6 py-4">
+                        <div className="flex justify-end gap-1">
 
-                          <span
-                            className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
-                              employee.employment_status ===
-                              "Active"
-                                ? "bg-green-100 text-green-700"
-                                : "bg-charcoal-100 text-charcoal-600"
-                            }`}
-                          >
-                            {
-                              employee.employment_status
+                          <button
+                            type="button"
+                            onClick={() =>
+                              openEditForm(employee)
                             }
-                          </span>
+                            className="rounded-lg p-2 text-charcoal-400 hover:bg-charcoal-100 hover:text-charcoal-900"
+                            title="Edit employee"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
 
-                        </td>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void deleteEmployee(employee)
+                            }
+                            className="rounded-lg p-2 text-charcoal-400 hover:bg-red-50 hover:text-red-600"
+                            title="Delete employee"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
 
-                        <td className="px-6 py-4">
+                        </div>
 
-                          <div className="flex justify-end gap-1">
+                      </td>
 
-                            <button
-                              type="button"
-                              onClick={() =>
-                                openEditForm(
-                                  employee
-                                )
-                              }
-                              className="rounded-lg p-2 text-charcoal-400 hover:bg-charcoal-100 hover:text-charcoal-900"
-                              title="Edit employee"
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() =>
-                                void deleteEmployee(
-                                  employee
-                                )
-                              }
-                              className="rounded-lg p-2 text-charcoal-400 hover:bg-red-50 hover:text-red-600"
-                              title="Delete employee"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-
-                          </div>
-
-                        </td>
-
-                      </tr>
-                    )
-                  )}
+                    </tr>
+                  ))}
 
                 </tbody>
 
