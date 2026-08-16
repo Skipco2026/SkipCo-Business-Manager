@@ -41,7 +41,7 @@ export function CustomerTable({
         </h2>
 
         <p className="mt-2 text-gray-500">
-          Click "Add Customer" to create your first customer.
+          Click &quot;Add Customer&quot; to create your first customer.
         </p>
 
         <Link
