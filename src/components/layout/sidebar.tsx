@@ -5,8 +5,18 @@ import { mainNavItems } from "@/config/navigation";
 import { Logo } from "@/components/ui/logo";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { X, Briefcase } from "lucide-react";
+import {
+  X,
+  Briefcase,
+  ChevronDown,
+  Users,
+  DollarSign,
+  FileText,
+  Clock3,
+  CalendarDays,
+} from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useEffect, useState } from "react";
 
 interface SidebarProps {
   open: boolean;
@@ -15,6 +25,48 @@ interface SidebarProps {
 
 export function Sidebar({ open, onClose }: SidebarProps) {
   const pathname = usePathname();
+
+  /*
+   * =========================================================
+   * EMPLOYEES NAVIGATION STATE
+   * =========================================================
+   */
+
+  const employeeSectionActive =
+    pathname === "/employees" ||
+    pathname.startsWith("/employees/");
+
+  const payrollSectionActive =
+    pathname === "/employees/payroll" ||
+    pathname.startsWith("/employees/payroll/");
+
+  const [employeesOpen, setEmployeesOpen] =
+    useState(employeeSectionActive);
+
+  const [payrollOpen, setPayrollOpen] =
+    useState(payrollSectionActive);
+
+  /*
+   * Automatically open the Employees menu when the user
+   * navigates to any Employees page.
+   */
+
+  useEffect(() => {
+    if (employeeSectionActive) {
+      setEmployeesOpen(true);
+    }
+
+    if (payrollSectionActive) {
+      setEmployeesOpen(true);
+      setPayrollOpen(true);
+    }
+  }, [employeeSectionActive, payrollSectionActive]);
+
+  /*
+   * =========================================================
+   * NORMAL NAVIGATION ITEMS
+   * =========================================================
+   */
 
   const renderNavItems = (items: typeof mainNavItems) =>
     items.map((item) => {
@@ -56,7 +108,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
    * NAVIGATION GROUPS
    * =========================================================
    *
-   * mainNavItems order:
+   * mainNavItems:
    *
    * 0 = Dashboard
    * 1 = Customers
@@ -68,19 +120,14 @@ export function Sidebar({ open, onClose }: SidebarProps) {
    * 7 = Contractors
    * 8 = Settings
    *
-   * Jobs is added here directly because it already exists
+   * Jobs is added manually because it already exists
    * at /jobs.
    */
 
   // Business
   const businessItems = mainNavItems.slice(0, 1);
 
-  // Sales:
-  // Invoices
-  // Quotes
-  // Payments
-  // Statements
-  // Jobs
+  // Sales
   const salesItems = [
     ...mainNavItems.slice(2, 6),
     {
@@ -90,15 +137,48 @@ export function Sidebar({ open, onClose }: SidebarProps) {
     },
   ];
 
-  // Operations:
-  // Customers
-  // Employees
-  // Contractors
-  // Settings
+  /*
+   * Operations
+   *
+   * Employees is intentionally NOT included here because
+   * we render the expandable Employees navigation separately.
+   */
+
   const operationsItems = [
     mainNavItems[1],
-    ...mainNavItems.slice(6),
+    mainNavItems[7],
+    mainNavItems[8],
   ];
+
+  /*
+   * =========================================================
+   * EMPLOYEES SUB-NAVIGATION
+   * =========================================================
+   */
+
+  const employeesSubItems = [
+    {
+      title: "Employees",
+      href: "/employees",
+      icon: Users,
+    },
+    {
+      title: "Attendance",
+      href: "/employees/attendance",
+      icon: Clock3,
+    },
+    {
+      title: "Leave",
+      href: "/employees/leave",
+      icon: CalendarDays,
+    },
+  ];
+
+  /*
+   * =========================================================
+   * SIDEBAR CONTENT
+   * =========================================================
+   */
 
   const sidebarContent = (
     <div className="flex h-full flex-col bg-white dark:bg-charcoal-900">
@@ -161,7 +241,363 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         </p>
 
         <div className="space-y-1">
-          {renderNavItems(operationsItems)}
+          {/* =================================================
+              EMPLOYEES PARENT
+          ================================================= */}
+
+          <button
+            type="button"
+            onClick={() => setEmployeesOpen((current) => !current)}
+            className={cn(
+              "group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
+              employeeSectionActive
+                ? "bg-primary text-white shadow-md shadow-primary/25"
+                : "text-charcoal-600 hover:bg-charcoal-50 hover:text-charcoal-900 dark:text-charcoal-400 dark:hover:bg-charcoal-800 dark:hover:text-white"
+            )}
+          >
+            <Users
+              className={cn(
+                "h-5 w-5 shrink-0",
+                employeeSectionActive
+                  ? "text-white"
+                  : "text-charcoal-400 group-hover:text-charcoal-600 dark:group-hover:text-charcoal-300"
+              )}
+            />
+
+            <span className="flex-1 text-left">
+              Employees
+            </span>
+
+            <ChevronDown
+              className={cn(
+                "h-4 w-4 transition-transform duration-200",
+                employeesOpen && "rotate-180"
+              )}
+            />
+          </button>
+
+          {/* =================================================
+              EMPLOYEES SUBMENU
+          ================================================= */}
+
+          <AnimatePresence initial={false}>
+            {employeesOpen && (
+              <motion.div
+                initial={{
+                  height: 0,
+                  opacity: 0,
+                }}
+                animate={{
+                  height: "auto",
+                  opacity: 1,
+                }}
+                exit={{
+                  height: 0,
+                  opacity: 0,
+                }}
+                transition={{
+                  duration: 0.2,
+                }}
+                className="overflow-hidden"
+              >
+                <div className="ml-4 space-y-1 border-l border-charcoal-200 pl-3 dark:border-charcoal-700">
+                  {/* Employees */}
+
+                  {employeesSubItems
+                    .filter(
+                      (item) => item.href === "/employees"
+                    )
+                    .map((item) => {
+                      const Icon = item.icon;
+
+                      const isActive =
+                        pathname === item.href;
+
+                      return (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          onClick={onClose}
+                          className={cn(
+                            "group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200",
+                            isActive
+                              ? "bg-primary/10 text-primary"
+                              : "text-charcoal-600 hover:bg-charcoal-50 hover:text-charcoal-900 dark:text-charcoal-400 dark:hover:bg-charcoal-800 dark:hover:text-white"
+                          )}
+                        >
+                          <Icon
+                            className={cn(
+                              "h-4 w-4 shrink-0",
+                              isActive
+                                ? "text-primary"
+                                : "text-charcoal-400"
+                            )}
+                          />
+
+                          <span>{item.title}</span>
+                        </Link>
+                      );
+                    })}
+
+                  {/* =================================================
+                      PAYROLL PARENT
+                  ================================================= */}
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setPayrollOpen(
+                        (current) => !current
+                      )
+                    }
+                    className={cn(
+                      "group flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200",
+                      payrollSectionActive
+                        ? "bg-primary/10 text-primary"
+                        : "text-charcoal-600 hover:bg-charcoal-50 hover:text-charcoal-900 dark:text-charcoal-400 dark:hover:bg-charcoal-800 dark:hover:text-white"
+                    )}
+                  >
+                    <DollarSign
+                      className={cn(
+                        "h-4 w-4 shrink-0",
+                        payrollSectionActive
+                          ? "text-primary"
+                          : "text-charcoal-400"
+                      )}
+                    />
+
+                    <span className="flex-1 text-left">
+                      Payroll
+                    </span>
+
+                    <ChevronDown
+                      className={cn(
+                        "h-3.5 w-3.5 transition-transform duration-200",
+                        payrollOpen &&
+                          "rotate-180"
+                      )}
+                    />
+                  </button>
+
+                  {/* =================================================
+                      PAYROLL SUBMENU
+                  ================================================= */}
+
+                  <AnimatePresence initial={false}>
+                    {payrollOpen && (
+                      <motion.div
+                        initial={{
+                          height: 0,
+                          opacity: 0,
+                        }}
+                        animate={{
+                          height: "auto",
+                          opacity: 1,
+                        }}
+                        exit={{
+                          height: 0,
+                          opacity: 0,
+                        }}
+                        transition={{
+                          duration: 0.2,
+                        }}
+                        className="overflow-hidden"
+                      >
+                        <div className="ml-4 space-y-1 border-l border-charcoal-100 pl-3 dark:border-charcoal-800">
+                          <Link
+                            href="/employees/payroll"
+                            onClick={onClose}
+                            className={cn(
+                              "group flex items-center gap-3 rounded-lg px-3 py-2 text-xs font-medium transition-all duration-200",
+                              pathname ===
+                                "/employees/payroll"
+                                ? "bg-primary/10 text-primary"
+                                : "text-charcoal-500 hover:bg-charcoal-50 hover:text-charcoal-900 dark:text-charcoal-400 dark:hover:bg-charcoal-800 dark:hover:text-white"
+                            )}
+                          >
+                            <DollarSign className="h-3.5 w-3.5 shrink-0" />
+
+                            <span>
+                              Payroll
+                            </span>
+                          </Link>
+
+                          <Link
+                            href="/employees/payroll/payslips"
+                            onClick={onClose}
+                            className={cn(
+                              "group flex items-center gap-3 rounded-lg px-3 py-2 text-xs font-medium transition-all duration-200",
+                              pathname.startsWith(
+                                "/employees/payroll/payslips"
+                              )
+                                ? "bg-primary/10 text-primary"
+                                : "text-charcoal-500 hover:bg-charcoal-50 hover:text-charcoal-900 dark:text-charcoal-400 dark:hover:bg-charcoal-800 dark:hover:text-white"
+                            )}
+                          >
+                            <FileText className="h-3.5 w-3.5 shrink-0" />
+
+                            <span>
+                              Payslips
+                            </span>
+                          </Link>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {/* =================================================
+                      ATTENDANCE
+                  ================================================= */}
+
+                  {employeesSubItems
+                    .filter(
+                      (item) =>
+                        item.href ===
+                        "/employees/attendance"
+                    )
+                    .map((item) => {
+                      const Icon = item.icon;
+
+                      const isActive =
+                        pathname === item.href ||
+                        pathname.startsWith(
+                          `${item.href}/`
+                        );
+
+                      return (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          onClick={onClose}
+                          className={cn(
+                            "group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200",
+                            isActive
+                              ? "bg-primary/10 text-primary"
+                              : "text-charcoal-600 hover:bg-charcoal-50 hover:text-charcoal-900 dark:text-charcoal-400 dark:hover:bg-charcoal-800 dark:hover:text-white"
+                          )}
+                        >
+                          <Icon
+                            className={cn(
+                              "h-4 w-4 shrink-0",
+                              isActive
+                                ? "text-primary"
+                                : "text-charcoal-400"
+                            )}
+                          />
+
+                          <span>{item.title}</span>
+                        </Link>
+                      );
+                    })}
+
+                  {/* =================================================
+                      LEAVE
+                  ================================================= */}
+
+                  {employeesSubItems
+                    .filter(
+                      (item) =>
+                        item.href ===
+                        "/employees/leave"
+                    )
+                    .map((item) => {
+                      const Icon = item.icon;
+
+                      const isActive =
+                        pathname === item.href ||
+                        pathname.startsWith(
+                          `${item.href}/`
+                        );
+
+                      return (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          onClick={onClose}
+                          className={cn(
+                            "group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200",
+                            isActive
+                              ? "bg-primary/10 text-primary"
+                              : "text-charcoal-600 hover:bg-charcoal-50 hover:text-charcoal-900 dark:text-charcoal-400 dark:hover:bg-charcoal-800 dark:hover:text-white"
+                          )}
+                        >
+                          <Icon
+                            className={cn(
+                              "h-4 w-4 shrink-0",
+                              isActive
+                                ? "text-primary"
+                                : "text-charcoal-400"
+                            )}
+                          />
+
+                          <span>{item.title}</span>
+                        </Link>
+                      );
+                    })}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* =================================================
+              CONTRACTORS
+          ================================================= */}
+
+          <Link
+            href={mainNavItems[7].href}
+            onClick={onClose}
+            className={cn(
+              "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
+              pathname === mainNavItems[7].href ||
+                pathname.startsWith(
+                  `${mainNavItems[7].href}/`
+                )
+                ? "bg-primary text-white shadow-md shadow-primary/25"
+                : "text-charcoal-600 hover:bg-charcoal-50 hover:text-charcoal-900 dark:text-charcoal-400 dark:hover:bg-charcoal-800 dark:hover:text-white"
+            )}
+          >
+            {(() => {
+              const Icon = mainNavItems[7].icon;
+
+              return (
+                <>
+                  <Icon className="h-5 w-5 shrink-0 text-charcoal-400 group-hover:text-charcoal-600 dark:group-hover:text-charcoal-300" />
+
+                  <span>{mainNavItems[7].title}</span>
+                </>
+              );
+            })()}
+          </Link>
+
+          {/* =================================================
+              SETTINGS
+          ================================================= */}
+
+          <Link
+            href={mainNavItems[8].href}
+            onClick={onClose}
+            className={cn(
+              "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
+              pathname === mainNavItems[8].href ||
+                pathname.startsWith(
+                  `${mainNavItems[8].href}/`
+                )
+                ? "bg-primary text-white shadow-md shadow-primary/25"
+                : "text-charcoal-600 hover:bg-charcoal-50 hover:text-charcoal-900 dark:text-charcoal-400 dark:hover:bg-charcoal-800 dark:hover:text-white"
+            )}
+          >
+            {(() => {
+              const Icon = mainNavItems[8].icon;
+
+              return (
+                <>
+                  <Icon className="h-5 w-5 shrink-0 text-charcoal-400 group-hover:text-charcoal-600 dark:group-hover:text-charcoal-300" />
+
+                  <span>{mainNavItems[8].title}</span>
+                </>
+              );
+            })()}
+          </Link>
         </div>
       </nav>
 

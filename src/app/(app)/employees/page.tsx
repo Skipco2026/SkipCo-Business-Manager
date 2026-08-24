@@ -353,13 +353,9 @@ export default function EmployeesPage() {
   }
 
   function formatCurrency(value: number | null) {
-    return `R ${Number(value || 0).toLocaleString(
-      "en-ZA",
-      {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      }
-    )}`;
+  const amount = Number(value || 0);
+
+  return `R ${amount.toFixed(2)}`;
   }
 
   function formatDate(value: string | null) {

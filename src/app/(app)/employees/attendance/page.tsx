@@ -2,14 +2,18 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
+  ArrowLeft,
+  ArrowRight,
   CalendarDays,
   Check,
+  ChevronLeft,
   Clock3,
   Loader2,
   Plus,
   RefreshCw,
   Search,
   UserCheck,
+  Users,
   X,
   XCircle,
 } from "lucide-react";
@@ -39,12 +43,12 @@ type AttendanceRecord = {
   id: string;
   employee_id: string;
   attendance_date: string;
-  clock_in: string;
+  clock_in: string | null;
   break_start: string | null;
   break_end: string | null;
-  clock_out: string;
-  normal_hours: number;
-  overtime_hours: number;
+  clock_out: string | null;
+  normal_hours: number | null;
+  overtime_hours: number | null;
   employee_notes: string | null;
   status: AttendanceStatus;
   submitted_at: string | null;
@@ -84,22 +88,6 @@ const EMPTY_FORM: AttendanceForm = {
   employeeNotes: "",
 };
 
-/*
- * IMPORTANT:
- *
- * Your route.ts is located inside:
- *
- * app/(app)/employees/Attendance/route.ts
- *
- * Therefore the API endpoint used below is:
- *
- * /api/employees/Attendance
- *
- * If your actual API folder is lowercase "attendance",
- * change this constant to:
- *
- * /api/employees/attendance
- */
 const ATTENDANCE_API =
   "/api/employees/Attendance";
 
@@ -134,7 +122,9 @@ function getToday(): string {
 function formatDate(
   value: string | null | undefined
 ): string {
-  if (!value) return "—";
+  if (!value) {
+    return "—";
+  }
 
   const parts = value.split("-");
 
@@ -148,7 +138,9 @@ function formatDate(
 function formatTime(
   value: string | null | undefined
 ): string {
-  if (!value) return "—";
+  if (!value) {
+    return "—";
+  }
 
   return value.slice(0, 5);
 }
@@ -167,7 +159,9 @@ function calculateHours(
     };
   }
 
-  const toMinutes = (value: string) => {
+  const toMinutes = (
+    value: string
+  ) => {
     const [hours, minutes] =
       value.split(":").map(Number);
 
@@ -199,9 +193,7 @@ function calculateHours(
   }
 
   const total = minutes / 60;
-
   const normal = Math.min(total, 8);
-
   const overtime = Math.max(
     total - 8,
     0
@@ -252,6 +244,128 @@ function statusClass(
   }
 }
 
+function getMonthStart(
+  date: Date
+) {
+  return new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    1
+  );
+}
+
+function getMonthEnd(
+  date: Date
+) {
+  return new Date(
+    date.getFullYear(),
+    date.getMonth() + 1,
+    0
+  );
+}
+
+function formatMonth(
+  date: Date
+) {
+  return date.toLocaleDateString(
+    "en-ZA",
+    {
+      month: "long",
+      year: "numeric",
+    }
+  );
+}
+
+function formatCalendarDate(
+  date: Date
+) {
+  const year =
+    date.getFullYear();
+
+  const month = String(
+    date.getMonth() + 1
+  ).padStart(2, "0");
+
+  const day = String(
+    date.getDate()
+  ).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+function getCalendarDays(
+  monthDate: Date
+) {
+  const start =
+    getMonthStart(monthDate);
+
+  const end =
+    getMonthEnd(monthDate);
+
+  const firstDay =
+    start.getDay();
+
+  const daysInMonth =
+    end.getDate();
+
+  const days: (
+    | Date
+    | null
+  )[] = [];
+
+  /*
+   * Convert Sunday-first JavaScript
+   * calendar into Monday-first.
+   */
+  const mondayOffset =
+    firstDay === 0
+      ? 6
+      : firstDay - 1;
+
+  for (
+    let index = 0;
+    index < mondayOffset;
+    index++
+  ) {
+    days.push(null);
+  }
+
+  for (
+    let day = 1;
+    day <= daysInMonth;
+    day++
+  ) {
+    days.push(
+      new Date(
+        monthDate.getFullYear(),
+        monthDate.getMonth(),
+        day
+      )
+    );
+  }
+
+  while (
+    days.length % 7 !==
+    0
+  ) {
+    days.push(null);
+  }
+
+  return days;
+}
+
+function isWeekend(
+  date: Date
+) {
+  const day =
+    date.getDay();
+
+  return (
+    day === 0 ||
+    day === 6
+  );
+}
+
 export default function AttendancePage() {
   const supabase = useMemo(
     () => createClient(),
@@ -285,7 +399,8 @@ export default function AttendancePage() {
   const [form, setForm] =
     useState<AttendanceForm>({
       ...EMPTY_FORM,
-      attendanceDate: getToday(),
+      attendanceDate:
+        getToday(),
     });
 
   const [error, setError] =
@@ -297,31 +412,41 @@ export default function AttendancePage() {
   const [search, setSearch] =
     useState("");
 
-  const [statusFilter, setStatusFilter] =
-    useState<"all" | AttendanceStatus>(
-      "all"
+  const [monthDate, setMonthDate] =
+    useState(
+      getMonthStart(
+        new Date()
+      )
     );
 
-  const [dateFilter, setDateFilter] =
-    useState("");
+  const [selectedEmployeeId, setSelectedEmployeeId] =
+    useState<string | null>(
+      null
+    );
+
+  const [selectedDate, setSelectedDate] =
+    useState<string | null>(
+      null
+    );
 
   const [reviewNotes, setReviewNotes] =
     useState("");
 
   const canManageAttendance =
     profile?.is_active === true &&
-    ["owner", "manager", "admin"].includes(
-      String(profile.role).toLowerCase()
+    [
+      "owner",
+      "manager",
+      "admin",
+    ].includes(
+      String(
+        profile.role
+      ).toLowerCase()
     );
-
-  /*
-   * -------------------------------------------------------
-   * INITIAL LOAD
-   * -------------------------------------------------------
-   */
 
   useEffect(() => {
     void initialise();
+
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -342,7 +467,6 @@ export default function AttendancePage() {
           "You must be logged in to use attendance."
         );
 
-        setLoading(false);
         return;
       }
 
@@ -355,10 +479,15 @@ export default function AttendancePage() {
           .select(
             "id, role, is_active"
           )
-          .eq("id", user.id)
+          .eq(
+            "id",
+            user.id
+          )
           .single();
 
-      if (profileError) {
+      if (
+        profileError
+      ) {
         console.error(
           "Profile loading error:",
           profileError
@@ -371,7 +500,6 @@ export default function AttendancePage() {
 
       await loadEmployees();
       await loadAttendance();
-
     } catch (err) {
       console.error(
         "Attendance initialisation error:",
@@ -385,12 +513,6 @@ export default function AttendancePage() {
       setLoading(false);
     }
   }
-
-  /*
-   * -------------------------------------------------------
-   * LOAD EMPLOYEES
-   * -------------------------------------------------------
-   */
 
   async function loadEmployees() {
     const {
@@ -414,11 +536,16 @@ export default function AttendancePage() {
           "employment_status",
           "Active"
         )
-        .order("first_name", {
-          ascending: true,
-        });
+        .order(
+          "first_name",
+          {
+            ascending: true,
+          }
+        );
 
-    if (employeeError) {
+    if (
+      employeeError
+    ) {
       console.error(
         "Employee loading error:",
         employeeError
@@ -432,45 +559,50 @@ export default function AttendancePage() {
     }
 
     setEmployees(
-      (data ?? []) as Employee[]
+      (data ??
+        []) as Employee[]
     );
   }
-
-  /*
-   * -------------------------------------------------------
-   * LOAD ATTENDANCE
-   * -------------------------------------------------------
-   */
 
   async function loadAttendance() {
     setLoadingAttendance(true);
 
     try {
+      const start =
+        formatCalendarDate(
+          getMonthStart(
+            monthDate
+          )
+        );
+
+      const end =
+        formatCalendarDate(
+          getMonthEnd(
+            monthDate
+          )
+        );
+
       const params =
         new URLSearchParams();
 
-      if (dateFilter) {
-        params.set(
-          "startDate",
-          dateFilter
-        );
+      params.set(
+        "startDate",
+        start
+      );
 
-        params.set(
-          "endDate",
-          dateFilter
-        );
-      }
-
-      const url =
-        params.toString()
-          ? `${ATTENDANCE_API}?${params.toString()}`
-          : ATTENDANCE_API;
+      params.set(
+        "endDate",
+        end
+      );
 
       const response =
-        await fetch(url, {
-          method: "GET",
-          cache: "no-store",
-        });
+        await fetch(
+          `${ATTENDANCE_API}?${params.toString()}`,
+          {
+            method: "GET",
+            cache: "no-store",
+          }
+        );
 
       const result =
         await response.json();
@@ -502,26 +634,38 @@ export default function AttendancePage() {
     }
   }
 
-  /*
-   * -------------------------------------------------------
-   * FORM
-   * -------------------------------------------------------
-   */
+  useEffect(() => {
+    if (!loading) {
+      void loadAttendance();
+    }
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [monthDate]);
 
   function updateField(
     field: keyof AttendanceForm,
     value: string
   ) {
-    setForm((current) => ({
-      ...current,
-      [field]: value,
-    }));
+    setForm(
+      (current) => ({
+        ...current,
+        [field]: value,
+      })
+    );
   }
 
-  function openAddForm() {
+  function openAddForm(
+    employeeId?: string,
+    date?: string
+  ) {
     setForm({
       ...EMPTY_FORM,
-      attendanceDate: getToday(),
+      employeeId:
+        employeeId ??
+        "",
+      attendanceDate:
+        date ??
+        getToday(),
     });
 
     setError("");
@@ -530,23 +674,20 @@ export default function AttendancePage() {
   }
 
   function closeForm() {
-    if (saving) return;
+    if (saving) {
+      return;
+    }
 
     setShowForm(false);
 
     setForm({
       ...EMPTY_FORM,
-      attendanceDate: getToday(),
+      attendanceDate:
+        getToday(),
     });
 
     setError("");
   }
-
-  /*
-   * -------------------------------------------------------
-   * SAVE ATTENDANCE
-   * -------------------------------------------------------
-   */
 
   async function submitAttendance() {
     setError("");
@@ -600,7 +741,9 @@ export default function AttendancePage() {
         form.clockOut
       );
 
-    if (calculated.total <= 0) {
+    if (
+      calculated.total <= 0
+    ) {
       setError(
         "The calculated working hours must be greater than zero."
       );
@@ -622,22 +765,16 @@ export default function AttendancePage() {
             body: JSON.stringify({
               employeeId:
                 form.employeeId,
-
               attendanceDate:
                 form.attendanceDate,
-
               clockIn:
                 form.clockIn,
-
               breakStart:
                 form.breakStart,
-
               breakEnd:
                 form.breakEnd,
-
               clockOut:
                 form.clockOut,
-
               employeeNotes:
                 form.employeeNotes,
             }),
@@ -667,7 +804,6 @@ export default function AttendancePage() {
       });
 
       await loadAttendance();
-
     } catch (err) {
       console.error(
         "Attendance submission error:",
@@ -684,19 +820,15 @@ export default function AttendancePage() {
     }
   }
 
-  /*
-   * -------------------------------------------------------
-   * MANAGEMENT REVIEW
-   * -------------------------------------------------------
-   */
-
   async function reviewAttendance(
     attendanceId: string,
     action:
       | "approved"
       | "rejected"
   ) {
-    if (!canManageAttendance) {
+    if (
+      !canManageAttendance
+    ) {
       setError(
         "Only management can approve attendance."
       );
@@ -705,7 +837,9 @@ export default function AttendancePage() {
 
     setError("");
     setSuccess("");
-    setReviewingId(attendanceId);
+    setReviewingId(
+      attendanceId
+    );
 
     try {
       const response =
@@ -738,7 +872,8 @@ export default function AttendancePage() {
       }
 
       setSuccess(
-        action === "approved"
+        action ===
+          "approved"
           ? "Attendance approved successfully. The approved hours can now be used by payroll."
           : "Attendance rejected and returned for correction."
       );
@@ -746,7 +881,6 @@ export default function AttendancePage() {
       setReviewNotes("");
 
       await loadAttendance();
-
     } catch (err) {
       console.error(
         "Attendance review error:",
@@ -759,83 +893,121 @@ export default function AttendancePage() {
           : "Unable to review attendance."
       );
     } finally {
-      setReviewingId(null);
+      setReviewingId(
+        null
+      );
     }
   }
 
-  /*
-   * -------------------------------------------------------
-   * FILTERING
-   * -------------------------------------------------------
-   */
+  function changeMonth(
+    amount: number
+  ) {
+    setMonthDate(
+      (current) =>
+        new Date(
+          current.getFullYear(),
+          current.getMonth() +
+            amount,
+          1
+        )
+    );
+  }
 
-  const filteredAttendance =
-    attendance.filter((record) => {
-      const employee =
-        getEmployee(record);
+  function goToCurrentMonth() {
+    setMonthDate(
+      getMonthStart(
+        new Date()
+      )
+    );
+  }
 
-      const employeeName =
-        employee
-          ? `${employee.first_name} ${employee.last_name}`
-          : "";
+  const filteredEmployees =
+    employees.filter(
+      (employee) => {
+        const query =
+          search
+            .trim()
+            .toLowerCase();
 
-      const employeeNumber =
-        employee?.employee_number ?? "";
+        if (!query) {
+          return true;
+        }
 
-      const searchMatches =
-        !search.trim() ||
-        employeeName
-          .toLowerCase()
-          .includes(
-            search
-              .trim()
-              .toLowerCase()
-          ) ||
-        employeeNumber
-          .toLowerCase()
-          .includes(
-            search
-              .trim()
-              .toLowerCase()
-          );
+        const name =
+          `${employee.first_name} ${employee.last_name}`.toLowerCase();
 
-      const statusMatches =
-        statusFilter === "all" ||
-        record.status ===
-          statusFilter;
+        return (
+          name.includes(query) ||
+          employee.employee_number
+            .toLowerCase()
+            .includes(query) ||
+          (
+            employee.job_title ??
+            ""
+          )
+            .toLowerCase()
+            .includes(query)
+        );
+      }
+    );
 
-      return (
-        searchMatches &&
-        statusMatches
+  function employeeAttendance(
+    employeeId: string
+  ) {
+    return attendance.filter(
+      (record) =>
+        record.employee_id ===
+        employeeId
+    );
+  }
+
+  function employeeMonthTotals(
+    employeeId: string
+  ) {
+    const records =
+      employeeAttendance(
+        employeeId
       );
-    });
 
-  /*
-   * -------------------------------------------------------
-   * STATISTICS
-   * -------------------------------------------------------
-   */
+    const normal =
+      records.reduce(
+        (total, record) =>
+          total +
+          Number(
+            record.normal_hours ||
+              0
+          ),
+        0
+      );
 
-  const pendingCount =
-    attendance.filter(
-      (record) =>
-        record.status ===
-        "submitted"
-    ).length;
+    const overtime =
+      records.reduce(
+        (total, record) =>
+          total +
+          Number(
+            record.overtime_hours ||
+              0
+          ),
+        0
+      );
 
-  const approvedCount =
-    attendance.filter(
-      (record) =>
-        record.status ===
-        "approved"
-    ).length;
+    const total =
+      normal + overtime;
 
-  const rejectedCount =
-    attendance.filter(
-      (record) =>
-        record.status ===
-        "rejected"
-    ).length;
+    const presentDays =
+      records.filter(
+        (record) =>
+          record.status !==
+          "rejected"
+      ).length;
+
+    return {
+      normal,
+      overtime,
+      total,
+      presentDays,
+    };
+  }
 
   const approvedHours =
     attendance
@@ -858,6 +1030,57 @@ export default function AttendancePage() {
         0
       );
 
+  const pendingCount =
+    attendance.filter(
+      (record) =>
+        record.status ===
+        "submitted"
+    ).length;
+
+  const approvedCount =
+    attendance.filter(
+      (record) =>
+        record.status ===
+        "approved"
+    ).length;
+
+  const rejectedCount =
+    attendance.filter(
+      (record) =>
+        record.status ===
+        "rejected"
+    ).length;
+
+  const selectedEmployee =
+    selectedEmployeeId
+      ? employees.find(
+          (employee) =>
+            employee.id ===
+            selectedEmployeeId
+        ) ?? null
+      : null;
+
+  const selectedEmployeeRecords =
+    selectedEmployeeId
+      ? employeeAttendance(
+          selectedEmployeeId
+        )
+      : [];
+
+  const selectedRecord =
+    selectedDate
+      ? selectedEmployeeRecords.find(
+          (record) =>
+            record.attendance_date ===
+            selectedDate
+        ) ?? null
+      : null;
+
+  const calendarDays =
+    getCalendarDays(
+      monthDate
+    );
+
   const currentCalculation =
     calculateHours(
       form.clockIn,
@@ -866,17 +1089,11 @@ export default function AttendancePage() {
       form.clockOut
     );
 
-  /*
-   * -------------------------------------------------------
-   * RENDER
-   * -------------------------------------------------------
-   */
-
   if (loading) {
     return (
       <DashboardShell
         title="Attendance"
-        subtitle="Manage employee attendance and approved working hours"
+        subtitle="Manage employee attendance and working hours"
       >
         <div className="flex min-h-[400px] items-center justify-center">
           <Loader2 className="h-7 w-7 animate-spin text-[#20AEB8]" />
@@ -892,16 +1109,17 @@ export default function AttendancePage() {
   return (
     <DashboardShell
       title="Attendance"
-      subtitle="Manage employee attendance and approved working hours"
+      subtitle="Manage employee attendance and working hours"
     >
       <PageHeader
         title="Attendance"
-        description="Employees record their working hours here. Management reviews and approves each day's attendance before it becomes available to payroll."
+        description="Track employee working hours by month, review daily attendance and approve hours for payroll."
         icon={Clock3}
         action={{
           label: "Record Attendance",
           href: "#",
-          onClick: openAddForm,
+          onClick: () =>
+            openAddForm(),
         }}
       />
 
@@ -912,8 +1130,9 @@ export default function AttendancePage() {
         {success && (
           <div className="flex items-start gap-3 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
             <Check className="mt-0.5 h-4 w-4 shrink-0" />
-
-            <span>{success}</span>
+            <span>
+              {success}
+            </span>
           </div>
         )}
 
@@ -921,7 +1140,9 @@ export default function AttendancePage() {
           <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             <XCircle className="mt-0.5 h-4 w-4 shrink-0" />
 
-            <span>{error}</span>
+            <span>
+              {error}
+            </span>
 
             <button
               type="button"
@@ -935,9 +1156,130 @@ export default function AttendancePage() {
           </div>
         )}
 
+        {/* MONTH NAVIGATION */}
+
+        <div className="rounded-2xl border border-charcoal-100 bg-white p-5 shadow-sm">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-[#20AEB8]">
+                Attendance Period
+              </p>
+
+              <h2 className="mt-1 text-2xl font-bold text-charcoal-900">
+                {formatMonth(
+                  monthDate
+                )}
+              </h2>
+
+              <p className="mt-1 text-sm text-charcoal-500">
+                View employee hours and monthly attendance.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+
+              <button
+                type="button"
+                onClick={() =>
+                  changeMonth(-1)
+                }
+                className="inline-flex items-center gap-2 rounded-lg border border-charcoal-200 bg-white px-3 py-2.5 text-sm font-medium text-charcoal-700 hover:bg-charcoal-50"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Previous
+              </button>
+
+              <button
+                type="button"
+                onClick={
+                  goToCurrentMonth
+                }
+                className="rounded-lg border border-[#20AEB8]/30 bg-[#20AEB8]/5 px-4 py-2.5 text-sm font-medium text-[#168892] hover:bg-[#20AEB8]/10"
+              >
+                Current Month
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  changeMonth(1)
+                }
+                className="inline-flex items-center gap-2 rounded-lg border border-charcoal-200 bg-white px-3 py-2.5 text-sm font-medium text-charcoal-700 hover:bg-charcoal-50"
+              >
+                Next
+                <ArrowRight className="h-4 w-4" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  void loadAttendance()
+                }
+                disabled={
+                  loadingAttendance
+                }
+                className="inline-flex items-center gap-2 rounded-lg bg-charcoal-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-charcoal-800 disabled:opacity-60"
+              >
+                <RefreshCw
+                  className={`h-4 w-4 ${
+                    loadingAttendance
+                      ? "animate-spin"
+                      : ""
+                  }`}
+                />
+                Refresh
+              </button>
+
+            </div>
+          </div>
+        </div>
+
         {/* SUMMARY */}
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+
+          <div className="rounded-2xl border border-charcoal-100 bg-white p-5 shadow-sm">
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-charcoal-500">
+                Employees
+              </p>
+
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#20AEB8]/10">
+                <Users className="h-4 w-4 text-[#20AEB8]" />
+              </div>
+            </div>
+
+            <p className="mt-3 text-2xl font-bold text-charcoal-900">
+              {employees.length}
+            </p>
+
+            <p className="mt-1 text-xs text-charcoal-500">
+              Active employees
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-charcoal-100 bg-white p-5 shadow-sm">
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-charcoal-500">
+                Approved Hours
+              </p>
+
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-green-50">
+                <Check className="h-4 w-4 text-green-600" />
+              </div>
+            </div>
+
+            <p className="mt-3 text-2xl font-bold text-charcoal-900">
+              {approvedHours.toFixed(
+                2
+              )}
+            </p>
+
+            <p className="mt-1 text-xs text-charcoal-500">
+              Available for payroll
+            </p>
+          </div>
 
           <div className="rounded-2xl border border-charcoal-100 bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between">
@@ -950,32 +1292,12 @@ export default function AttendancePage() {
               </div>
             </div>
 
-            <p className="mt-3 text-2xl font-bold text-charcoal-900">
+            <p className="mt-3 text-2xl font-bold text-amber-600">
               {pendingCount}
             </p>
 
             <p className="mt-1 text-xs text-charcoal-500">
-              Waiting for management
-            </p>
-          </div>
-
-          <div className="rounded-2xl border border-charcoal-100 bg-white p-5 shadow-sm">
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-charcoal-500">
-                Approved
-              </p>
-
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-green-50">
-                <UserCheck className="h-4 w-4 text-green-600" />
-              </div>
-            </div>
-
-            <p className="mt-3 text-2xl font-bold text-green-600">
-              {approvedCount}
-            </p>
-
-            <p className="mt-1 text-xs text-charcoal-500">
-              Ready for payroll
+              Awaiting management
             </p>
           </div>
 
@@ -995,932 +1317,1215 @@ export default function AttendancePage() {
             </p>
 
             <p className="mt-1 text-xs text-charcoal-500">
-              Requires correction
-            </p>
-          </div>
-
-          <div className="rounded-2xl border border-charcoal-100 bg-white p-5 shadow-sm">
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-charcoal-500">
-                Approved Hours
-              </p>
-
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#20AEB8]/10">
-                <Clock3 className="h-4 w-4 text-[#20AEB8]" />
-              </div>
-            </div>
-
-            <p className="mt-3 text-2xl font-bold text-charcoal-900">
-              {approvedHours.toFixed(2)}
-            </p>
-
-            <p className="mt-1 text-xs text-charcoal-500">
-              Available to payroll
+              Need correction
             </p>
           </div>
 
         </div>
 
-        {/* IMPORTANT WORKFLOW NOTICE */}
+        {/* EMPLOYEE DETAIL VIEW */}
 
-        <div className="rounded-2xl border border-[#20AEB8]/20 bg-[#20AEB8]/5 p-5">
-          <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#20AEB8]/10">
-              <UserCheck className="h-5 w-5 text-[#20AEB8]" />
-            </div>
+        {selectedEmployee ? (
+          <>
+            <div className="rounded-2xl border border-charcoal-100 bg-white p-5 shadow-sm">
 
-            <div>
-              <h3 className="text-sm font-semibold text-charcoal-900">
-                Attendance Approval Workflow
-              </h3>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedEmployeeId(
+                    null
+                  );
+                  setSelectedDate(
+                    null
+                  );
+                }}
+                className="mb-5 inline-flex items-center gap-2 text-sm font-medium text-charcoal-600 hover:text-charcoal-900"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Back to Employees
+              </button>
 
-              <p className="mt-1 text-sm leading-6 text-charcoal-600">
-                Employees enter their clock-in,
-                break and clock-out times and
-                submit them for review. Management
-                must approve the attendance before
-                the hours are considered approved
-                payroll hours.
-              </p>
+              <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
 
-              <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-medium">
-                <span className="rounded-full bg-white px-3 py-1 text-charcoal-600">
-                  1. Employee records hours
-                </span>
+                <div className="flex items-center gap-4">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#20AEB8]/10 text-lg font-bold text-[#168892]">
+                    {selectedEmployee.first_name.charAt(
+                      0
+                    )}
+                    {selectedEmployee.last_name.charAt(
+                      0
+                    )}
+                  </div>
 
-                <span className="text-charcoal-400">
-                  →
-                </span>
+                  <div>
+                    <h2 className="text-xl font-bold text-charcoal-900">
+                      {
+                        selectedEmployee.first_name
+                      }{" "}
+                      {
+                        selectedEmployee.last_name
+                      }
+                    </h2>
 
-                <span className="rounded-full bg-amber-100 px-3 py-1 text-amber-700">
-                  2. Pending approval
-                </span>
+                    <p className="mt-1 text-sm text-charcoal-500">
+                      {
+                        selectedEmployee.employee_number
+                      }
+                      {" • "}
+                      {
+                        selectedEmployee.job_title ??
+                        "Employee"
+                      }
+                    </p>
+                  </div>
+                </div>
 
-                <span className="text-charcoal-400">
-                  →
-                </span>
+                <div className="grid grid-cols-3 gap-3">
 
-                <span className="rounded-full bg-green-100 px-3 py-1 text-green-700">
-                  3. Manager approves
-                </span>
+                  <div className="rounded-xl bg-charcoal-50 px-4 py-3 text-center">
+                    <p className="text-xs text-charcoal-500">
+                      Total Hours
+                    </p>
 
-                <span className="text-charcoal-400">
-                  →
-                </span>
+                    <p className="mt-1 text-lg font-bold text-charcoal-900">
+                      {employeeMonthTotals(
+                        selectedEmployee.id
+                      ).total.toFixed(
+                        2
+                      )}
+                    </p>
+                  </div>
 
-                <span className="rounded-full bg-[#20AEB8]/10 px-3 py-1 text-[#168892]">
-                  4. Payroll uses hours
-                </span>
+                  <div className="rounded-xl bg-charcoal-50 px-4 py-3 text-center">
+                    <p className="text-xs text-charcoal-500">
+                      Normal
+                    </p>
+
+                    <p className="mt-1 text-lg font-bold text-charcoal-900">
+                      {employeeMonthTotals(
+                        selectedEmployee.id
+                      ).normal.toFixed(
+                        2
+                      )}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl bg-[#20AEB8]/5 px-4 py-3 text-center">
+                    <p className="text-xs text-charcoal-500">
+                      Overtime
+                    </p>
+
+                    <p className="mt-1 text-lg font-bold text-[#168892]">
+                      {employeeMonthTotals(
+                        selectedEmployee.id
+                      ).overtime.toFixed(
+                        2
+                      )}
+                    </p>
+                  </div>
+
+                </div>
               </div>
             </div>
-          </div>
-        </div>
 
-        {/* ADD FORM */}
+            {/* CALENDAR */}
+
+            <div className="overflow-hidden rounded-2xl border border-charcoal-100 bg-white shadow-sm">
+
+              <div className="border-b border-charcoal-100 p-5">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+
+                  <div>
+                    <h2 className="text-lg font-semibold text-charcoal-900">
+                      {formatMonth(
+                        monthDate
+                      )}
+                    </h2>
+
+                    <p className="mt-1 text-sm text-charcoal-500">
+                      Click a day to view attendance details.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        changeMonth(
+                          -1
+                        )
+                      }
+                      className="rounded-lg border border-charcoal-200 p-2 hover:bg-charcoal-50"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        changeMonth(
+                          1
+                        )
+                      }
+                      className="rounded-lg border border-charcoal-200 p-2 hover:bg-charcoal-50"
+                    >
+                      <ArrowRight className="h-4 w-4" />
+                    </button>
+
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-7 border-b border-charcoal-100 bg-charcoal-50">
+
+                {[
+                  "Mon",
+                  "Tue",
+                  "Wed",
+                  "Thu",
+                  "Fri",
+                  "Sat",
+                  "Sun",
+                ].map(
+                  (day) => (
+                    <div
+                      key={day}
+                      className="border-r border-charcoal-100 px-2 py-3 text-center text-xs font-semibold uppercase tracking-wide text-charcoal-500 last:border-r-0"
+                    >
+                      {day}
+                    </div>
+                  )
+                )}
+
+              </div>
+
+              <div className="grid grid-cols-7">
+
+                {calendarDays.map(
+                  (
+                    date,
+                    index
+                  ) => {
+                    if (!date) {
+                      return (
+                        <div
+                          key={`empty-${index}`}
+                          className="min-h-[115px] border-b border-r border-charcoal-100 bg-charcoal-50/40"
+                        />
+                      );
+                    }
+
+                    const dateString =
+                      formatCalendarDate(
+                        date
+                      );
+
+                    const record =
+                      selectedEmployeeRecords.find(
+                        (
+                          item
+                        ) =>
+                          item.attendance_date ===
+                          dateString
+                      );
+
+                    const weekend =
+                      isWeekend(
+                        date
+                      );
+
+                    return (
+                      <button
+                        key={
+                          dateString
+                        }
+                        type="button"
+                        onClick={() => {
+                          setSelectedDate(
+                            dateString
+                          );
+                        }}
+                        className={`min-h-[115px] border-b border-r border-charcoal-100 p-3 text-left transition hover:bg-[#20AEB8]/5 ${
+                          weekend
+                            ? "bg-charcoal-50/40"
+                            : "bg-white"
+                        }`}
+                      >
+
+                        <div className="flex items-center justify-between">
+
+                          <span
+                            className={`text-sm font-semibold ${
+                              dateString ===
+                              getToday()
+                                ? "flex h-7 w-7 items-center justify-center rounded-full bg-[#20AEB8] text-white"
+                                : "text-charcoal-700"
+                            }`}
+                          >
+                            {date.getDate()}
+                          </span>
+
+                          {record && (
+                            <span
+                              className={`h-2.5 w-2.5 rounded-full ${
+                                record.status ===
+                                "approved"
+                                  ? "bg-green-500"
+                                  : record.status ===
+                                    "submitted"
+                                  ? "bg-amber-500"
+                                  : "bg-red-500"
+                              }`}
+                            />
+                          )}
+
+                        </div>
+
+                        {record ? (
+                          <div className="mt-4">
+
+                            <p className="text-sm font-bold text-charcoal-900">
+                              {(
+                                Number(
+                                  record.normal_hours ||
+                                    0
+                                ) +
+                                Number(
+                                  record.overtime_hours ||
+                                    0
+                                )
+                              ).toFixed(
+                                2
+                              )}
+                              h
+                            </p>
+
+                            <p className="mt-1 text-xs text-charcoal-500">
+                              {
+                                statusLabel(
+                                  record.status
+                                )
+                              }
+                            </p>
+
+                            {Number(
+                              record.overtime_hours ||
+                                0
+                            ) > 0 && (
+                              <p className="mt-1 text-xs font-medium text-[#20AEB8]">
+                                +
+                                {Number(
+                                  record.overtime_hours
+                                ).toFixed(
+                                  2
+                                )}
+                                h OT
+                              </p>
+                            )}
+
+                          </div>
+                        ) : (
+                          <div className="mt-4">
+
+                            {!weekend ? (
+                              <>
+                                <p className="text-xs text-charcoal-400">
+                                  No record
+                                </p>
+
+                                <span className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-[#20AEB8]">
+                                  <Plus className="h-3 w-3" />
+                                  Add
+                                </span>
+                              </>
+                            ) : (
+                              <p className="text-xs text-charcoal-400">
+                                Weekend
+                              </p>
+                            )}
+
+                          </div>
+                        )}
+
+                      </button>
+                    );
+                  }
+                )}
+
+              </div>
+
+            </div>
+
+            {/* SELECTED DAY */}
+
+            {selectedDate && (
+              <div className="rounded-2xl border border-charcoal-100 bg-white p-6 shadow-sm">
+
+                <div className="flex flex-col gap-4 border-b border-charcoal-100 pb-5 sm:flex-row sm:items-start sm:justify-between">
+
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-[#20AEB8]">
+                      Daily Attendance
+                    </p>
+
+                    <h2 className="mt-1 text-xl font-bold text-charcoal-900">
+                      {formatDate(
+                        selectedDate
+                      )}
+                    </h2>
+
+                    <p className="mt-1 text-sm text-charcoal-500">
+                      {
+                        selectedEmployee.first_name
+                      }{" "}
+                      {
+                        selectedEmployee.last_name
+                      }
+                    </p>
+                  </div>
+
+                  {!selectedRecord && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        openAddForm(
+                          selectedEmployee.id,
+                          selectedDate
+                        )
+                      }
+                      className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#20AEB8] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#1897a0]"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Record This Day
+                    </button>
+                  )}
+
+                </div>
+
+                {selectedRecord ? (
+                  <div className="mt-6">
+
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+
+                      <div className="rounded-xl border border-charcoal-100 bg-charcoal-50 p-4">
+                        <p className="text-xs text-charcoal-500">
+                          Clock In
+                        </p>
+
+                        <p className="mt-1 text-lg font-bold text-charcoal-900">
+                          {formatTime(
+                            selectedRecord.clock_in
+                          )}
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl border border-charcoal-100 bg-charcoal-50 p-4">
+                        <p className="text-xs text-charcoal-500">
+                          Break
+                        </p>
+
+                        <p className="mt-1 text-lg font-bold text-charcoal-900">
+                          {selectedRecord.break_start &&
+                          selectedRecord.break_end
+                            ? `${formatTime(
+                                selectedRecord.break_start
+                              )} – ${formatTime(
+                                selectedRecord.break_end
+                              )}`
+                            : "None"}
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl border border-charcoal-100 bg-charcoal-50 p-4">
+                        <p className="text-xs text-charcoal-500">
+                          Clock Out
+                        </p>
+
+                        <p className="mt-1 text-lg font-bold text-charcoal-900">
+                          {formatTime(
+                            selectedRecord.clock_out
+                          )}
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl border border-[#20AEB8]/20 bg-[#20AEB8]/5 p-4">
+                        <p className="text-xs text-charcoal-500">
+                          Total Hours
+                        </p>
+
+                        <p className="mt-1 text-lg font-bold text-[#168892]">
+                          {(
+                            Number(
+                              selectedRecord.normal_hours ||
+                                0
+                            ) +
+                            Number(
+                              selectedRecord.overtime_hours ||
+                                0
+                            )
+                          ).toFixed(
+                            2
+                          )}
+                        </p>
+                      </div>
+
+                    </div>
+
+                    <div className="mt-5 grid gap-4 sm:grid-cols-3">
+
+                      <div className="rounded-xl bg-charcoal-50 p-4">
+                        <p className="text-xs text-charcoal-500">
+                          Normal Hours
+                        </p>
+
+                        <p className="mt-1 text-2xl font-bold text-charcoal-900">
+                          {Number(
+                            selectedRecord.normal_hours ||
+                              0
+                          ).toFixed(
+                            2
+                          )}
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl bg-[#20AEB8]/5 p-4">
+                        <p className="text-xs text-charcoal-500">
+                          Overtime
+                        </p>
+
+                        <p className="mt-1 text-2xl font-bold text-[#168892]">
+                          {Number(
+                            selectedRecord.overtime_hours ||
+                              0
+                          ).toFixed(
+                            2
+                          )}
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl bg-white p-4">
+
+                        <p className="text-xs text-charcoal-500">
+                          Status
+                        </p>
+
+                        <span
+                          className={`mt-2 inline-flex rounded-full px-3 py-1.5 text-xs font-medium ${statusClass(
+                            selectedRecord.status
+                          )}`}
+                        >
+                          {statusLabel(
+                            selectedRecord.status
+                          )}
+                        </span>
+
+                      </div>
+
+                    </div>
+
+                    {selectedRecord.employee_notes && (
+                      <div className="mt-5 rounded-xl border border-charcoal-100 bg-charcoal-50 p-4">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-charcoal-500">
+                          Employee Notes
+                        </p>
+
+                        <p className="mt-2 text-sm leading-6 text-charcoal-700">
+                          {
+                            selectedRecord.employee_notes
+                          }
+                        </p>
+                      </div>
+                    )}
+
+                    {selectedRecord.management_notes && (
+                      <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">
+                          Management Notes
+                        </p>
+
+                        <p className="mt-2 text-sm leading-6 text-amber-800">
+                          {
+                            selectedRecord.management_notes
+                          }
+                        </p>
+                      </div>
+                    )}
+
+                    {canManageAttendance &&
+                      selectedRecord.status ===
+                        "submitted" && (
+                        <div className="mt-6 border-t border-charcoal-100 pt-6">
+
+                          <div className="mb-4">
+                            <h3 className="text-sm font-semibold text-charcoal-900">
+                              Management Review
+                            </h3>
+
+                            <p className="mt-1 text-sm text-charcoal-500">
+                              Approve the recorded hours for payroll or reject them for correction.
+                            </p>
+                          </div>
+
+                          <input
+                            value={
+                              reviewNotes
+                            }
+                            onChange={(
+                              event
+                            ) =>
+                              setReviewNotes(
+                                event
+                                  .target
+                                  .value
+                              )
+                            }
+                            placeholder="Optional management note..."
+                            className="w-full rounded-lg border border-charcoal-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#20AEB8] focus:ring-2 focus:ring-[#20AEB8]/10"
+                          />
+
+                          <div className="mt-4 flex flex-wrap gap-3">
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void reviewAttendance(
+                                  selectedRecord.id,
+                                  "approved"
+                                )
+                              }
+                              disabled={
+                                reviewingId ===
+                                selectedRecord.id
+                              }
+                              className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-60"
+                            >
+                              {reviewingId ===
+                              selectedRecord.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Check className="h-4 w-4" />
+                              )}
+
+                              Approve Attendance
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void reviewAttendance(
+                                  selectedRecord.id,
+                                  "rejected"
+                                )
+                              }
+                              disabled={
+                                reviewingId ===
+                                selectedRecord.id
+                              }
+                              className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-white px-5 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-60"
+                            >
+                              <X className="h-4 w-4" />
+                              Reject
+                            </button>
+
+                          </div>
+
+                        </div>
+                      )}
+
+                  </div>
+                ) : (
+                  <div className="mt-6 rounded-xl border border-dashed border-charcoal-200 bg-charcoal-50 p-8 text-center">
+
+                    <CalendarDays className="mx-auto h-8 w-8 text-charcoal-400" />
+
+                    <h3 className="mt-3 text-sm font-semibold text-charcoal-900">
+                      No attendance recorded
+                    </h3>
+
+                    <p className="mt-1 text-sm text-charcoal-500">
+                      There is no attendance record for this employee on this date.
+                    </p>
+
+                  </div>
+                )}
+
+              </div>
+            )}
+
+          </>
+        ) : (
+          <>
+            {/* EMPLOYEE LIST */}
+
+            <div className="rounded-2xl border border-charcoal-100 bg-white p-5 shadow-sm">
+
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-end">
+
+                <div className="flex-1">
+
+                  <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-charcoal-500">
+                    Search Employees
+                  </label>
+
+                  <div className="relative">
+
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-charcoal-400" />
+
+                    <input
+                      value={search}
+                      onChange={(
+                        event
+                      ) =>
+                        setSearch(
+                          event.target.value
+                        )
+                      }
+                      placeholder="Search by name, employee number or position..."
+                      className="w-full rounded-lg border border-charcoal-200 py-2.5 pl-9 pr-3 text-sm outline-none focus:border-[#20AEB8] focus:ring-2 focus:ring-[#20AEB8]/10"
+                    />
+
+                  </div>
+
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setSearch("")
+                  }
+                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-charcoal-200 px-4 py-2.5 text-sm font-medium text-charcoal-700 hover:bg-charcoal-50"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  Clear
+                </button>
+
+              </div>
+
+            </div>
+
+            <div className="overflow-hidden rounded-2xl border border-charcoal-100 bg-white shadow-sm">
+
+              <div className="border-b border-charcoal-100 p-6">
+
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+
+                  <div>
+                    <h2 className="text-lg font-semibold text-charcoal-900">
+                      Employee Attendance
+                    </h2>
+
+                    <p className="mt-1 text-sm text-charcoal-500">
+                      Select an employee to view their {formatMonth(
+                        monthDate
+                      )} attendance calendar.
+                    </p>
+                  </div>
+
+                  <div className="rounded-lg bg-[#20AEB8]/5 px-3 py-2 text-sm font-medium text-[#168892]">
+                    {filteredEmployees.length}{" "}
+                    employee
+                    {filteredEmployees.length ===
+                    1
+                      ? ""
+                      : "s"}
+                  </div>
+
+                </div>
+
+              </div>
+
+              {loadingAttendance ? (
+                <div className="flex items-center justify-center px-6 py-16">
+                  <Loader2 className="h-6 w-6 animate-spin text-[#20AEB8]" />
+
+                  <span className="ml-3 text-sm text-charcoal-500">
+                    Loading attendance...
+                  </span>
+                </div>
+              ) : filteredEmployees.length ===
+                0 ? (
+                <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
+
+                  <Users className="h-8 w-8 text-charcoal-300" />
+
+                  <h3 className="mt-3 text-base font-semibold text-charcoal-900">
+                    No employees found
+                  </h3>
+
+                  <p className="mt-1 text-sm text-charcoal-500">
+                    Try changing your search.
+                  </p>
+
+                </div>
+              ) : (
+                <div className="divide-y divide-charcoal-100">
+
+                  {filteredEmployees.map(
+                    (employee) => {
+                      const totals =
+                        employeeMonthTotals(
+                          employee.id
+                        );
+
+                      return (
+                        <button
+                          key={
+                            employee.id
+                          }
+                          type="button"
+                          onClick={() =>
+                            setSelectedEmployeeId(
+                              employee.id
+                            )
+                          }
+                          className="w-full px-6 py-5 text-left transition hover:bg-charcoal-50"
+                        >
+
+                          <div className="flex flex-col gap-5 lg:flex-row lg:items-center">
+
+                            <div className="flex min-w-0 flex-1 items-center gap-4">
+
+                              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#20AEB8]/10 text-sm font-bold text-[#168892]">
+                                {employee.first_name.charAt(
+                                  0
+                                )}
+                                {employee.last_name.charAt(
+                                  0
+                                )}
+                              </div>
+
+                              <div className="min-w-0">
+
+                                <p className="truncate text-sm font-semibold text-charcoal-900">
+                                  {
+                                    employee.first_name
+                                  }{" "}
+                                  {
+                                    employee.last_name
+                                  }
+                                </p>
+
+                                <p className="mt-1 text-xs text-charcoal-500">
+                                  {
+                                    employee.employee_number
+                                  }
+                                  {" • "}
+                                  {
+                                    employee.job_title ??
+                                    "Employee"
+                                  }
+                                </p>
+
+                              </div>
+
+                            </div>
+
+                            <div className="grid grid-cols-3 gap-3 sm:grid-cols-3 lg:w-[420px]">
+
+                              <div className="rounded-xl bg-charcoal-50 px-4 py-3">
+                                <p className="text-xs text-charcoal-500">
+                                  Hours Worked
+                                </p>
+
+                                <p className="mt-1 text-base font-bold text-charcoal-900">
+                                  {totals.total.toFixed(
+                                    2
+                                  )}
+                                </p>
+                              </div>
+
+                              <div className="rounded-xl bg-charcoal-50 px-4 py-3">
+                                <p className="text-xs text-charcoal-500">
+                                  Days Present
+                                </p>
+
+                                <p className="mt-1 text-base font-bold text-charcoal-900">
+                                  {
+                                    totals.presentDays
+                                  }
+                                </p>
+                              </div>
+
+                              <div className="rounded-xl bg-[#20AEB8]/5 px-4 py-3">
+                                <p className="text-xs text-charcoal-500">
+                                  Overtime
+                                </p>
+
+                                <p className="mt-1 text-base font-bold text-[#168892]">
+                                  {totals.overtime.toFixed(
+                                    2
+                                  )}
+                                </p>
+                              </div>
+
+                            </div>
+
+                            <ArrowRight className="hidden h-5 w-5 shrink-0 text-charcoal-400 lg:block" />
+
+                          </div>
+
+                        </button>
+                      );
+                    }
+                  )}
+
+                </div>
+              )}
+
+            </div>
+          </>
+        )}
+
+        {/* ADD ATTENDANCE FORM */}
 
         {showForm && (
-          <div className="rounded-2xl border border-charcoal-100 bg-white p-6 shadow-sm">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-charcoal-900/40 p-4">
 
-            <div className="mb-6 flex items-start justify-between border-b border-charcoal-100 pb-5">
-              <div>
-                <h2 className="text-lg font-semibold text-charcoal-900">
-                  Record Employee Attendance
-                </h2>
+            <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
 
-                <p className="mt-1 text-sm text-charcoal-500">
-                  Enter the employee&apos;s actual
-                  working times. The record will
-                  remain pending until management
-                  approves it.
-                </p>
-              </div>
+              <div className="sticky top-0 z-10 flex items-start justify-between border-b border-charcoal-100 bg-white p-6">
 
-              <button
-                type="button"
-                onClick={closeForm}
-                disabled={saving}
-                className="rounded-lg p-2 text-charcoal-400 hover:bg-charcoal-50 hover:text-charcoal-900"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-charcoal-900">
+                    Record Employee Attendance
+                  </h2>
 
-            <div className="grid gap-5 md:grid-cols-2">
+                  <p className="mt-1 text-sm text-charcoal-500">
+                    Record the employee&apos;s actual working times.
+                  </p>
+                </div>
 
-              {/* EMPLOYEE */}
-
-              <div>
-                <label className="mb-2 block text-sm font-medium text-charcoal-700">
-                  Employee *
-                </label>
-
-                <select
-                  value={
-                    form.employeeId
+                <button
+                  type="button"
+                  onClick={
+                    closeForm
                   }
-                  onChange={(event) =>
-                    updateField(
-                      "employeeId",
-                      event.target.value
-                    )
+                  disabled={
+                    saving
                   }
-                  className="w-full rounded-lg border border-charcoal-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#20AEB8] focus:ring-2 focus:ring-[#20AEB8]/10"
+                  className="rounded-lg p-2 text-charcoal-400 hover:bg-charcoal-50 hover:text-charcoal-900"
                 >
-                  <option value="">
-                    Select employee
-                  </option>
+                  <X className="h-5 w-5" />
+                </button>
 
-                  {employees.map(
-                    (employee) => (
-                      <option
-                        key={
-                          employee.id
-                        }
-                        value={
-                          employee.id
-                        }
-                      >
-                        {
-                          employee.first_name
-                        }{" "}
-                        {
-                          employee.last_name
-                        }{" "}
-                        —{" "}
-                        {
-                          employee.employee_number
-                        }
+              </div>
+
+              <div className="p-6">
+
+                <div className="grid gap-5 md:grid-cols-2">
+
+                  {/* EMPLOYEE */}
+
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-charcoal-700">
+                      Employee *
+                    </label>
+
+                    <select
+                      value={
+                        form.employeeId
+                      }
+                      onChange={(
+                        event
+                      ) =>
+                        updateField(
+                          "employeeId",
+                          event.target
+                            .value
+                        )
+                      }
+                      className="w-full rounded-lg border border-charcoal-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#20AEB8] focus:ring-2 focus:ring-[#20AEB8]/10"
+                    >
+                      <option value="">
+                        Select employee
                       </option>
-                    )
-                  )}
-                </select>
-              </div>
 
-              {/* DATE */}
+                      {employees.map(
+                        (
+                          employee
+                        ) => (
+                          <option
+                            key={
+                              employee.id
+                            }
+                            value={
+                              employee.id
+                            }
+                          >
+                            {
+                              employee.first_name
+                            }{" "}
+                            {
+                              employee.last_name
+                            }{" "}
+                            —{" "}
+                            {
+                              employee.employee_number
+                            }
+                          </option>
+                        )
+                      )}
+                    </select>
+                  </div>
 
-              <div>
-                <label className="mb-2 block text-sm font-medium text-charcoal-700">
-                  Attendance Date *
-                </label>
+                  {/* DATE */}
 
-                <input
-                  type="date"
-                  value={
-                    form.attendanceDate
-                  }
-                  onChange={(event) =>
-                    updateField(
-                      "attendanceDate",
-                      event.target.value
-                    )
-                  }
-                  className="w-full rounded-lg border border-charcoal-200 px-3 py-2.5 text-sm outline-none focus:border-[#20AEB8] focus:ring-2 focus:ring-[#20AEB8]/10"
-                />
-              </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-charcoal-700">
+                      Attendance Date *
+                    </label>
 
-              {/* CLOCK IN */}
+                    <input
+                      type="date"
+                      value={
+                        form.attendanceDate
+                      }
+                      onChange={(
+                        event
+                      ) =>
+                        updateField(
+                          "attendanceDate",
+                          event.target
+                            .value
+                        )
+                      }
+                      className="w-full rounded-lg border border-charcoal-200 px-3 py-2.5 text-sm outline-none focus:border-[#20AEB8] focus:ring-2 focus:ring-[#20AEB8]/10"
+                    />
+                  </div>
 
-              <div>
-                <label className="mb-2 block text-sm font-medium text-charcoal-700">
-                  Clock In *
-                </label>
+                  {/* CLOCK IN */}
 
-                <input
-                  type="time"
-                  value={
-                    form.clockIn
-                  }
-                  onChange={(event) =>
-                    updateField(
-                      "clockIn",
-                      event.target.value
-                    )
-                  }
-                  className="w-full rounded-lg border border-charcoal-200 px-3 py-2.5 text-sm outline-none focus:border-[#20AEB8] focus:ring-2 focus:ring-[#20AEB8]/10"
-                />
-              </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-charcoal-700">
+                      Clock In *
+                    </label>
 
-              {/* CLOCK OUT */}
+                    <input
+                      type="time"
+                      value={
+                        form.clockIn
+                      }
+                      onChange={(
+                        event
+                      ) =>
+                        updateField(
+                          "clockIn",
+                          event.target
+                            .value
+                        )
+                      }
+                      className="w-full rounded-lg border border-charcoal-200 px-3 py-2.5 text-sm outline-none focus:border-[#20AEB8] focus:ring-2 focus:ring-[#20AEB8]/10"
+                    />
+                  </div>
 
-              <div>
-                <label className="mb-2 block text-sm font-medium text-charcoal-700">
-                  Clock Out *
-                </label>
+                  {/* CLOCK OUT */}
 
-                <input
-                  type="time"
-                  value={
-                    form.clockOut
-                  }
-                  onChange={(event) =>
-                    updateField(
-                      "clockOut",
-                      event.target.value
-                    )
-                  }
-                  className="w-full rounded-lg border border-charcoal-200 px-3 py-2.5 text-sm outline-none focus:border-[#20AEB8] focus:ring-2 focus:ring-[#20AEB8]/10"
-                />
-              </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-charcoal-700">
+                      Clock Out *
+                    </label>
 
-              {/* BREAK START */}
+                    <input
+                      type="time"
+                      value={
+                        form.clockOut
+                      }
+                      onChange={(
+                        event
+                      ) =>
+                        updateField(
+                          "clockOut",
+                          event.target
+                            .value
+                        )
+                      }
+                      className="w-full rounded-lg border border-charcoal-200 px-3 py-2.5 text-sm outline-none focus:border-[#20AEB8] focus:ring-2 focus:ring-[#20AEB8]/10"
+                    />
+                  </div>
 
-              <div>
-                <label className="mb-2 block text-sm font-medium text-charcoal-700">
-                  Break Start
-                </label>
+                  {/* BREAK START */}
 
-                <input
-                  type="time"
-                  value={
-                    form.breakStart
-                  }
-                  onChange={(event) =>
-                    updateField(
-                      "breakStart",
-                      event.target.value
-                    )
-                  }
-                  className="w-full rounded-lg border border-charcoal-200 px-3 py-2.5 text-sm outline-none focus:border-[#20AEB8] focus:ring-2 focus:ring-[#20AEB8]/10"
-                />
-              </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-charcoal-700">
+                      Break Start
+                    </label>
 
-              {/* BREAK END */}
+                    <input
+                      type="time"
+                      value={
+                        form.breakStart
+                      }
+                      onChange={(
+                        event
+                      ) =>
+                        updateField(
+                          "breakStart",
+                          event.target
+                            .value
+                        )
+                      }
+                      className="w-full rounded-lg border border-charcoal-200 px-3 py-2.5 text-sm outline-none focus:border-[#20AEB8] focus:ring-2 focus:ring-[#20AEB8]/10"
+                    />
+                  </div>
 
-              <div>
-                <label className="mb-2 block text-sm font-medium text-charcoal-700">
-                  Break End
-                </label>
+                  {/* BREAK END */}
 
-                <input
-                  type="time"
-                  value={
-                    form.breakEnd
-                  }
-                  onChange={(event) =>
-                    updateField(
-                      "breakEnd",
-                      event.target.value
-                    )
-                  }
-                  className="w-full rounded-lg border border-charcoal-200 px-3 py-2.5 text-sm outline-none focus:border-[#20AEB8] focus:ring-2 focus:ring-[#20AEB8]/10"
-                />
-              </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-charcoal-700">
+                      Break End
+                    </label>
 
-              {/* NOTES */}
+                    <input
+                      type="time"
+                      value={
+                        form.breakEnd
+                      }
+                      onChange={(
+                        event
+                      ) =>
+                        updateField(
+                          "breakEnd",
+                          event.target
+                            .value
+                        )
+                      }
+                      className="w-full rounded-lg border border-charcoal-200 px-3 py-2.5 text-sm outline-none focus:border-[#20AEB8] focus:ring-2 focus:ring-[#20AEB8]/10"
+                    />
+                  </div>
 
-              <div className="md:col-span-2">
-                <label className="mb-2 block text-sm font-medium text-charcoal-700">
-                  Employee Notes
-                </label>
+                  {/* NOTES */}
 
-                <textarea
-                  rows={3}
-                  value={
-                    form.employeeNotes
-                  }
-                  onChange={(event) =>
-                    updateField(
-                      "employeeNotes",
-                      event.target.value
-                    )
-                  }
-                  placeholder="Optional notes about today's attendance..."
-                  className="w-full rounded-lg border border-charcoal-200 px-3 py-2.5 text-sm outline-none focus:border-[#20AEB8] focus:ring-2 focus:ring-[#20AEB8]/10"
-                />
-              </div>
+                  <div className="md:col-span-2">
 
-            </div>
+                    <label className="mb-2 block text-sm font-medium text-charcoal-700">
+                      Employee Notes
+                    </label>
 
-            {/* CALCULATION */}
+                    <textarea
+                      rows={3}
+                      value={
+                        form.employeeNotes
+                      }
+                      onChange={(
+                        event
+                      ) =>
+                        updateField(
+                          "employeeNotes",
+                          event.target
+                            .value
+                        )
+                      }
+                      placeholder="Optional notes about today's attendance..."
+                      className="w-full rounded-lg border border-charcoal-200 px-3 py-2.5 text-sm outline-none focus:border-[#20AEB8] focus:ring-2 focus:ring-[#20AEB8]/10"
+                    />
 
-            <div className="mt-6 rounded-xl border border-charcoal-100 bg-charcoal-50 p-5">
+                  </div>
 
-              <div className="mb-4 flex items-center gap-2">
-                <Clock3 className="h-4 w-4 text-[#20AEB8]" />
-
-                <h3 className="text-sm font-semibold text-charcoal-900">
-                  Calculated Working Hours
-                </h3>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-3">
-
-                <div className="rounded-lg bg-white p-4">
-                  <p className="text-xs text-charcoal-500">
-                    Total Hours
-                  </p>
-
-                  <p className="mt-1 text-xl font-bold text-charcoal-900">
-                    {currentCalculation.total.toFixed(
-                      2
-                    )}
-                  </p>
                 </div>
 
-                <div className="rounded-lg bg-white p-4">
-                  <p className="text-xs text-charcoal-500">
-                    Normal Hours
-                  </p>
+                {/* CALCULATED HOURS */}
 
-                  <p className="mt-1 text-xl font-bold text-charcoal-900">
-                    {currentCalculation.normal.toFixed(
-                      2
-                    )}
-                  </p>
+                <div className="mt-6 rounded-xl border border-[#20AEB8]/20 bg-[#20AEB8]/5 p-5">
+
+                  <div className="flex items-center gap-2">
+                    <Clock3 className="h-4 w-4 text-[#20AEB8]" />
+
+                    <h3 className="text-sm font-semibold text-charcoal-900">
+                      Calculated Working Hours
+                    </h3>
+                  </div>
+
+                  <div className="mt-4 grid gap-4 sm:grid-cols-3">
+
+                    <div className="rounded-lg bg-white p-4">
+                      <p className="text-xs text-charcoal-500">
+                        Total Hours
+                      </p>
+
+                      <p className="mt-1 text-xl font-bold text-charcoal-900">
+                        {currentCalculation.total.toFixed(
+                          2
+                        )}
+                      </p>
+                    </div>
+
+                    <div className="rounded-lg bg-white p-4">
+                      <p className="text-xs text-charcoal-500">
+                        Normal Hours
+                      </p>
+
+                      <p className="mt-1 text-xl font-bold text-charcoal-900">
+                        {currentCalculation.normal.toFixed(
+                          2
+                        )}
+                      </p>
+                    </div>
+
+                    <div className="rounded-lg bg-white p-4">
+                      <p className="text-xs text-charcoal-500">
+                        Overtime
+                      </p>
+
+                      <p className="mt-1 text-xl font-bold text-[#20AEB8]">
+                        {currentCalculation.overtime.toFixed(
+                          2
+                        )}
+                      </p>
+                    </div>
+
+                  </div>
+
                 </div>
 
-                <div className="rounded-lg bg-white p-4">
-                  <p className="text-xs text-charcoal-500">
-                    Overtime Hours
-                  </p>
+                {/* BUTTONS */}
 
-                  <p className="mt-1 text-xl font-bold text-[#20AEB8]">
-                    {currentCalculation.overtime.toFixed(
-                      2
+                <div className="mt-6 flex justify-end gap-3 border-t border-charcoal-100 pt-6">
+
+                  <button
+                    type="button"
+                    onClick={
+                      closeForm
+                    }
+                    disabled={
+                      saving
+                    }
+                    className="rounded-lg border border-charcoal-200 px-5 py-2.5 text-sm font-medium text-charcoal-700 hover:bg-charcoal-50 disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void submitAttendance()
+                    }
+                    disabled={
+                      saving
+                    }
+                    className="inline-flex items-center gap-2 rounded-lg bg-[#20AEB8] px-5 py-2.5 text-sm font-medium text-white hover:bg-[#1897a0] disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {saving ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Submitting...
+                      </>
+                    ) : (
+                      <>
+                        <Check className="h-4 w-4" />
+                        Submit for Approval
+                      </>
                     )}
-                  </p>
+                  </button>
+
                 </div>
 
               </div>
-
-              <p className="mt-4 text-xs text-charcoal-500">
-                Hours are calculated automatically.
-                Management will review the recorded
-                times before approving the attendance.
-              </p>
-            </div>
-
-            {/* BUTTONS */}
-
-            <div className="mt-6 flex justify-end gap-3 border-t border-charcoal-100 pt-6">
-
-              <button
-                type="button"
-                onClick={closeForm}
-                disabled={saving}
-                className="rounded-lg border border-charcoal-200 px-5 py-2.5 text-sm font-medium text-charcoal-700 hover:bg-charcoal-50 disabled:opacity-50"
-              >
-                Cancel
-              </button>
-
-              <button
-                type="button"
-                onClick={() =>
-                  void submitAttendance()
-                }
-                disabled={saving}
-                className="inline-flex items-center gap-2 rounded-lg bg-[#20AEB8] px-5 py-2.5 text-sm font-medium text-white hover:bg-[#1897a0] disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {saving ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Submitting...
-                  </>
-                ) : (
-                  <>
-                    <Check className="h-4 w-4" />
-                    Submit for Approval
-                  </>
-                )}
-              </button>
 
             </div>
 
           </div>
         )}
-
-        {/* FILTERS */}
-
-        <div className="rounded-2xl border border-charcoal-100 bg-white p-5 shadow-sm">
-
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end">
-
-            <div className="flex-1">
-              <label className="mb-2 block text-xs font-medium uppercase tracking-wide text-charcoal-500">
-                Search Employee
-              </label>
-
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-charcoal-400" />
-
-                <input
-                  value={search}
-                  onChange={(event) =>
-                    setSearch(
-                      event.target.value
-                    )
-                  }
-                  placeholder="Search by employee name or number..."
-                  className="w-full rounded-lg border border-charcoal-200 py-2.5 pl-9 pr-3 text-sm outline-none focus:border-[#20AEB8] focus:ring-2 focus:ring-[#20AEB8]/10"
-                />
-              </div>
-            </div>
-
-            <div className="w-full lg:w-48">
-              <label className="mb-2 block text-xs font-medium uppercase tracking-wide text-charcoal-500">
-                Status
-              </label>
-
-              <select
-                value={
-                  statusFilter
-                }
-                onChange={(event) =>
-                  setStatusFilter(
-                    event.target
-                      .value as
-                      | "all"
-                      | AttendanceStatus
-                  )
-                }
-                className="w-full rounded-lg border border-charcoal-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#20AEB8]"
-              >
-                <option value="all">
-                  All Statuses
-                </option>
-
-                <option value="submitted">
-                  Pending Approval
-                </option>
-
-                <option value="approved">
-                  Approved
-                </option>
-
-                <option value="rejected">
-                  Rejected
-                </option>
-              </select>
-            </div>
-
-            <div className="w-full lg:w-48">
-              <label className="mb-2 block text-xs font-medium uppercase tracking-wide text-charcoal-500">
-                Date
-              </label>
-
-              <input
-                type="date"
-                value={
-                  dateFilter
-                }
-                onChange={(event) =>
-                  setDateFilter(
-                    event.target.value
-                  )
-                }
-                className="w-full rounded-lg border border-charcoal-200 px-3 py-2.5 text-sm outline-none focus:border-[#20AEB8]"
-              />
-            </div>
-
-            <button
-              type="button"
-              onClick={() => {
-                setDateFilter("");
-                setSearch("");
-                setStatusFilter(
-                  "all"
-                );
-                void loadAttendance();
-              }}
-              className="inline-flex items-center justify-center gap-2 rounded-lg border border-charcoal-200 px-4 py-2.5 text-sm font-medium text-charcoal-700 hover:bg-charcoal-50"
-            >
-              <RefreshCw className="h-4 w-4" />
-              Reset
-            </button>
-
-            <button
-              type="button"
-              onClick={() =>
-                void loadAttendance()
-              }
-              disabled={
-                loadingAttendance
-              }
-              className="inline-flex items-center justify-center gap-2 rounded-lg bg-charcoal-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-charcoal-800 disabled:opacity-60"
-            >
-              <RefreshCw
-                className={`h-4 w-4 ${
-                  loadingAttendance
-                    ? "animate-spin"
-                    : ""
-                }`}
-              />
-              Refresh
-            </button>
-
-          </div>
-
-        </div>
-
-        {/* MANAGEMENT REVIEW PANEL */}
-
-        {canManageAttendance &&
-          pendingCount > 0 && (
-            <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-5">
-
-              <div className="flex items-start gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-100">
-                  <UserCheck className="h-5 w-5 text-amber-700" />
-                </div>
-
-                <div>
-                  <h3 className="text-sm font-semibold text-charcoal-900">
-                    Management Review Required
-                  </h3>
-
-                  <p className="mt-1 text-sm text-charcoal-600">
-                    There{" "}
-                    {pendingCount === 1
-                      ? "is"
-                      : "are"}{" "}
-                    {pendingCount} attendance{" "}
-                    {pendingCount === 1
-                      ? "record"
-                      : "records"}{" "}
-                    waiting for approval.
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-4">
-                <label className="mb-2 block text-xs font-medium uppercase tracking-wide text-charcoal-500">
-                  Management Note
-                </label>
-
-                <input
-                  value={
-                    reviewNotes
-                  }
-                  onChange={(event) =>
-                    setReviewNotes(
-                      event.target.value
-                    )
-                  }
-                  placeholder="Optional note when approving or rejecting..."
-                  className="w-full rounded-lg border border-charcoal-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#20AEB8]"
-                />
-              </div>
-
-            </div>
-          )}
-
-        {/* ATTENDANCE TABLE */}
-
-        <div className="overflow-hidden rounded-2xl border border-charcoal-100 bg-white shadow-sm">
-
-          <div className="border-b border-charcoal-100 p-6">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-
-              <div>
-                <h2 className="text-lg font-semibold text-charcoal-900">
-                  Attendance Records
-                </h2>
-
-                <p className="mt-1 text-sm text-charcoal-500">
-                  Review daily employee hours and
-                  management approvals.
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={openAddForm}
-                className="inline-flex items-center justify-center gap-2 rounded-lg bg-charcoal-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-charcoal-800"
-              >
-                <Plus className="h-4 w-4" />
-                Record Attendance
-              </button>
-
-            </div>
-          </div>
-
-          {loadingAttendance ? (
-            <div className="flex items-center justify-center px-6 py-16">
-              <Loader2 className="h-6 w-6 animate-spin text-[#20AEB8]" />
-
-              <span className="ml-3 text-sm text-charcoal-500">
-                Loading attendance...
-              </span>
-            </div>
-          ) : filteredAttendance.length ===
-            0 ? (
-            <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
-
-              <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-charcoal-50">
-                <CalendarDays className="h-6 w-6 text-charcoal-400" />
-              </div>
-
-              <h3 className="text-base font-semibold text-charcoal-900">
-                No attendance records found
-              </h3>
-
-              <p className="mt-1 max-w-md text-sm text-charcoal-500">
-                Record employee attendance to
-                start building your approved
-                payroll hours.
-              </p>
-
-              <button
-                type="button"
-                onClick={openAddForm}
-                className="mt-5 inline-flex items-center gap-2 rounded-lg bg-[#20AEB8] px-4 py-2 text-sm font-medium text-white hover:bg-[#1897a0]"
-              >
-                <Plus className="h-4 w-4" />
-                Record Attendance
-              </button>
-
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-
-              <table className="w-full">
-
-                <thead>
-                  <tr className="border-b border-charcoal-100 bg-charcoal-50 text-left">
-
-                    <th className="whitespace-nowrap px-6 py-3 text-xs font-semibold uppercase tracking-wide text-charcoal-500">
-                      Employee
-                    </th>
-
-                    <th className="whitespace-nowrap px-6 py-3 text-xs font-semibold uppercase tracking-wide text-charcoal-500">
-                      Date
-                    </th>
-
-                    <th className="whitespace-nowrap px-6 py-3 text-xs font-semibold uppercase tracking-wide text-charcoal-500">
-                      Clock In
-                    </th>
-
-                    <th className="whitespace-nowrap px-6 py-3 text-xs font-semibold uppercase tracking-wide text-charcoal-500">
-                      Break
-                    </th>
-
-                    <th className="whitespace-nowrap px-6 py-3 text-xs font-semibold uppercase tracking-wide text-charcoal-500">
-                      Clock Out
-                    </th>
-
-                    <th className="whitespace-nowrap px-6 py-3 text-xs font-semibold uppercase tracking-wide text-charcoal-500">
-                      Normal
-                    </th>
-
-                    <th className="whitespace-nowrap px-6 py-3 text-xs font-semibold uppercase tracking-wide text-charcoal-500">
-                      Overtime
-                    </th>
-
-                    <th className="whitespace-nowrap px-6 py-3 text-xs font-semibold uppercase tracking-wide text-charcoal-500">
-                      Status
-                    </th>
-
-                    {canManageAttendance && (
-                      <th className="whitespace-nowrap px-6 py-3 text-right text-xs font-semibold uppercase tracking-wide text-charcoal-500">
-                        Management
-                      </th>
-                    )}
-
-                  </tr>
-                </thead>
-
-                <tbody className="divide-y divide-charcoal-100">
-
-                  {filteredAttendance.map(
-                    (record) => {
-                      const employee =
-                        getEmployee(
-                          record
-                        );
-
-                      const isReviewing =
-                        reviewingId ===
-                        record.id;
-
-                      return (
-                        <tr
-                          key={
-                            record.id
-                          }
-                          className="transition hover:bg-charcoal-50/50"
-                        >
-
-                          {/* EMPLOYEE */}
-
-                          <td className="px-6 py-4">
-
-                            <div className="text-sm font-semibold text-charcoal-900">
-                              {employee
-                                ? `${employee.first_name} ${employee.last_name}`
-                                : "Unknown Employee"}
-                            </div>
-
-                            <div className="mt-1 text-xs text-charcoal-500">
-                              {employee?.employee_number ??
-                                "—"}
-                            </div>
-
-                            {employee?.job_title && (
-                              <div className="mt-1 text-xs text-charcoal-400">
-                                {
-                                  employee.job_title
-                                }
-                              </div>
-                            )}
-
-                          </td>
-
-                          {/* DATE */}
-
-                          <td className="whitespace-nowrap px-6 py-4 text-sm text-charcoal-600">
-                            {formatDate(
-                              record.attendance_date
-                            )}
-                          </td>
-
-                          {/* CLOCK IN */}
-
-                          <td className="whitespace-nowrap px-6 py-4 text-sm font-medium text-charcoal-800">
-                            {formatTime(
-                              record.clock_in
-                            )}
-                          </td>
-
-                          {/* BREAK */}
-
-                          <td className="whitespace-nowrap px-6 py-4 text-sm text-charcoal-600">
-
-                            {record.break_start &&
-                            record.break_end ? (
-                              <>
-                                {
-                                  formatTime(
-                                    record.break_start
-                                  )
-                                }{" "}
-                                –
-                                {" "}
-                                {
-                                  formatTime(
-                                    record.break_end
-                                  )
-                                }
-                              </>
-                            ) : (
-                              "—"
-                            )}
-
-                          </td>
-
-                          {/* CLOCK OUT */}
-
-                          <td className="whitespace-nowrap px-6 py-4 text-sm font-medium text-charcoal-800">
-                            {formatTime(
-                              record.clock_out
-                            )}
-                          </td>
-
-                          {/* NORMAL */}
-
-                          <td className="whitespace-nowrap px-6 py-4 text-sm font-semibold text-charcoal-900">
-                            {Number(
-                              record.normal_hours ||
-                                0
-                            ).toFixed(
-                              2
-                            )}{" "}
-                            hrs
-                          </td>
-
-                          {/* OVERTIME */}
-
-                          <td className="whitespace-nowrap px-6 py-4 text-sm font-semibold text-[#20AEB8]">
-                            {Number(
-                              record.overtime_hours ||
-                                0
-                            ).toFixed(
-                              2
-                            )}{" "}
-                            hrs
-                          </td>
-
-                          {/* STATUS */}
-
-                          <td className="px-6 py-4">
-
-                            <span
-                              className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium ${statusClass(
-                                record.status
-                              )}`}
-                            >
-                              {statusLabel(
-                                record.status
-                              )}
-                            </span>
-
-                            {record.status ===
-                              "approved" &&
-                              record.approved_at && (
-                                <div className="mt-1 text-xs text-charcoal-400">
-                                  Approved{" "}
-                                  {formatDate(
-                                    record.approved_at.slice(
-                                      0,
-                                      10
-                                    )
-                                  )}
-                                </div>
-                              )}
-
-                            {record.status ===
-                              "rejected" &&
-                              record.management_notes && (
-                                <div className="mt-1 max-w-[180px] text-xs text-red-500">
-                                  {
-                                    record.management_notes
-                                  }
-                                </div>
-                              )}
-
-                          </td>
-
-                          {/* MANAGEMENT */}
-
-                          {canManageAttendance && (
-                            <td className="px-6 py-4">
-
-                              {record.status ===
-                              "submitted" ? (
-                                <div className="flex justify-end gap-2">
-
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      void reviewAttendance(
-                                        record.id,
-                                        "approved"
-                                      )
-                                    }
-                                    disabled={
-                                      isReviewing
-                                    }
-                                    className="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-2 text-xs font-medium text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
-                                  >
-                                    {isReviewing ? (
-                                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                    ) : (
-                                      <Check className="h-3.5 w-3.5" />
-                                    )}
-
-                                    Approve
-                                  </button>
-
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      void reviewAttendance(
-                                        record.id,
-                                        "rejected"
-                                      )
-                                    }
-                                    disabled={
-                                      isReviewing
-                                    }
-                                    className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
-                                  >
-                                    <X className="h-3.5 w-3.5" />
-
-                                    Reject
-                                  </button>
-
-                                </div>
-                              ) : record.status ===
-                                "approved" ? (
-                                <div className="flex justify-end">
-                                  <span className="inline-flex items-center gap-1.5 text-xs font-medium text-green-600">
-                                    <Check className="h-3.5 w-3.5" />
-                                    Locked
-                                  </span>
-                                </div>
-                              ) : (
-                                <div className="flex justify-end">
-                                  <span className="text-xs text-charcoal-400">
-                                    Awaiting resubmission
-                                  </span>
-                                </div>
-                              )}
-
-                            </td>
-                          )}
-
-                        </tr>
-                      );
-                    }
-                  )}
-
-                </tbody>
-
-              </table>
-
-            </div>
-          )}
-
-        </div>
 
       </div>
     </DashboardShell>
