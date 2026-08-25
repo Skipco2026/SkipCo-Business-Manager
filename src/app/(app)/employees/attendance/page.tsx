@@ -89,7 +89,7 @@ const EMPTY_FORM: AttendanceForm = {
 };
 
 const ATTENDANCE_API =
-  "/api/employees/Attendance";
+  "/api/employees/attendance";
 
 function getEmployee(
   record: AttendanceRecord
