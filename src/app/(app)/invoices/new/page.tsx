@@ -45,22 +45,32 @@ export default function NewInvoicePage() {
   const [customer, setCustomer] =
     useState<Customer | null>(null);
 
-  const [notes, setNotes] =
-    useState("");
+  const [site, setSite] = useState("");
+
+  const [notes, setNotes] = useState("");
 
   const [invoiceItems, setInvoiceItems] =
     useState<InvoiceItem[]>([]);
 
-  const invoiceDate =
-    new Date().toISOString().split("T")[0];
+  // Automatically start with today's date
+  const [invoiceDate, setInvoiceDate] = useState(() =>
+    new Date().toISOString().split("T")[0]
+  );
 
-  const dueDate = (() => {
+  // Automatically start with 30 days from today
+  const [dueDate, setDueDate] = useState(() => {
     const date = new Date();
 
     date.setDate(date.getDate() + 30);
 
     return date.toISOString().split("T")[0];
-  })();
+  });
+
+  // VAT is OFF by default
+  const [vatEnabled, setVatEnabled] =
+    useState(false);
+
+  const vatRate = 15;
 
   function addProduct(product: Product) {
     setInvoiceItems((prev) => [
@@ -105,9 +115,32 @@ export default function NewInvoicePage() {
       0
     );
   }, [invoiceItems]);
-    async function saveInvoice() {
+
+  const vatAmount = useMemo(() => {
+    if (!vatEnabled) {
+      return 0;
+    }
+
+    return subtotal * (vatRate / 100);
+  }, [subtotal, vatEnabled]);
+
+  const total = useMemo(() => {
+    return subtotal + vatAmount;
+  }, [subtotal, vatAmount]);
+
+  async function saveInvoice() {
     if (!customer) {
       alert("Please select a customer.");
+      return;
+    }
+
+    if (!invoiceDate) {
+      alert("Please select an invoice date.");
+      return;
+    }
+
+    if (!dueDate) {
+      alert("Please select a due date.");
       return;
     }
 
@@ -125,8 +158,11 @@ export default function NewInvoicePage() {
         invoice_date: invoiceDate,
         due_date: dueDate,
         subtotal,
-        total: subtotal,
-        notes,
+        total,
+        vat_enabled: vatEnabled,
+        vat_rate: vatRate,
+        notes: notes.trim() || null,
+        site: site.trim() || null,
         status: "Draft",
       })
       .select()
@@ -134,28 +170,38 @@ export default function NewInvoicePage() {
 
     if (error || !invoice) {
       console.error(error);
-      alert(error?.message ?? "Failed to create invoice.");
+
+      alert(
+        error?.message ??
+          "Failed to create invoice."
+      );
+
       setSaving(false);
       return;
     }
 
-    const invoiceLines = invoiceItems.map((item) => ({
-      invoice_id: invoice.id,
-      product_id: item.product_id,
-      description: item.description,
-      quantity: item.quantity,
-      unit_price: item.unit_price,
-      line_total:
-        item.quantity * item.unit_price,
-    }));
+    const invoiceLines = invoiceItems.map(
+      (item) => ({
+        invoice_id: invoice.id,
+        product_id: item.product_id,
+        description: item.description,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+        line_total:
+          item.quantity * item.unit_price,
+      })
+    );
 
-    const { error: itemError } = await supabase
-      .from("invoice_items")
-      .insert(invoiceLines);
+    const { error: itemError } =
+      await supabase
+        .from("invoice_items")
+        .insert(invoiceLines);
 
     if (itemError) {
       console.error(itemError);
+
       alert(itemError.message);
+
       setSaving(false);
       return;
     }
@@ -170,23 +216,60 @@ export default function NewInvoicePage() {
     >
       <div className="grid gap-8 lg:grid-cols-3">
 
-        {/* Left Column */}
-
+        {/* LEFT COLUMN */}
         <div className="space-y-8 lg:col-span-2">
 
+          {/* CUSTOMER */}
           <CustomerSelector
             value={customer?.id ?? ""}
             onChange={(selectedCustomer) =>
-              setCustomer(selectedCustomer as Customer | null)
+              setCustomer(
+                selectedCustomer as Customer | null
+              )
             }
           />
 
+          {/* SITE */}
+          <div className="rounded-xl border bg-white p-6 shadow-sm">
+
+            <h2 className="mb-4 text-xl font-bold">
+              Site Section
+            </h2>
+
+            <label
+              htmlFor="site"
+              className="mb-2 block text-sm font-medium text-gray-700"
+            >
+              Site
+            </label>
+
+            <input
+              id="site"
+              type="text"
+              value={site}
+              onChange={(e) =>
+                setSite(e.target.value)
+              }
+              placeholder="Enter site, project, property, or section"
+              className="w-full rounded-lg border px-4 py-3"
+            />
+
+            <p className="mt-2 text-xs text-gray-500">
+              Enter the site, project, property, or
+              section this invoice relates to.
+            </p>
+
+          </div>
+
+          {/* PRODUCTS SELECTOR */}
           <ProductSelector
             onSelect={(product) =>
               addProduct(product as Product)
             }
           />
-                    <div className="rounded-xl border bg-white p-6 shadow-sm">
+
+          {/* PRODUCTS ON INVOICE */}
+          <div className="rounded-xl border bg-white p-6 shadow-sm">
 
             <h2 className="mb-6 text-xl font-bold">
               Products & Services
@@ -195,26 +278,24 @@ export default function NewInvoicePage() {
             {invoiceItems.length === 0 ? (
 
               <div className="rounded-lg border border-dashed p-10 text-center text-gray-500">
-
                 No products added yet.
-
               </div>
 
             ) : (
 
               <div className="space-y-6">
 
-                {invoiceItems.map((item, index) => (
-
-                  <QuoteLine
-                    key={index}
-                    line={item}
-                    index={index}
-                    onChange={updateItem}
-                    onRemove={removeItem}
-                  />
-
-                ))}
+                {invoiceItems.map(
+                  (item, index) => (
+                    <QuoteLine
+                      key={index}
+                      line={item}
+                      index={index}
+                      onChange={updateItem}
+                      onRemove={removeItem}
+                    />
+                  )
+                )}
 
               </div>
 
@@ -222,6 +303,7 @@ export default function NewInvoicePage() {
 
           </div>
 
+          {/* NOTES */}
           <div className="rounded-xl border bg-white p-6 shadow-sm">
 
             <h2 className="mb-4 text-xl font-bold">
@@ -242,8 +324,7 @@ export default function NewInvoicePage() {
 
         </div>
 
-        {/* Right Column */}
-
+        {/* RIGHT COLUMN */}
         <div>
 
           <div className="sticky top-6 rounded-xl border bg-white p-6 shadow-sm">
@@ -254,32 +335,119 @@ export default function NewInvoicePage() {
 
             <div className="space-y-5">
 
+              {/* INVOICE DATE */}
               <div>
 
-                <label className="text-sm text-gray-500">
+                <label
+                  htmlFor="invoiceDate"
+                  className="mb-2 block text-sm font-medium text-gray-700"
+                >
                   Invoice Date
                 </label>
 
-                <div className="mt-1 rounded-lg border bg-gray-50 px-4 py-3">
-                  {invoiceDate}
-                </div>
+                <input
+                  id="invoiceDate"
+                  type="date"
+                  value={invoiceDate}
+                  onChange={(e) =>
+                    setInvoiceDate(
+                      e.target.value
+                    )
+                  }
+                  className="w-full rounded-lg border px-4 py-3"
+                />
 
               </div>
 
+              {/* DUE DATE */}
               <div>
 
-                <label className="text-sm text-gray-500">
+                <label
+                  htmlFor="dueDate"
+                  className="mb-2 block text-sm font-medium text-gray-700"
+                >
                   Due Date
                 </label>
 
-                <div className="mt-1 rounded-lg border bg-gray-50 px-4 py-3">
-                  {dueDate}
+                <input
+                  id="dueDate"
+                  type="date"
+                  value={dueDate}
+                  onChange={(e) =>
+                    setDueDate(
+                      e.target.value
+                    )
+                  }
+                  className="w-full rounded-lg border px-4 py-3"
+                />
+
+              </div>
+
+              {/* VAT SWITCH */}
+              <div className="rounded-xl border bg-gray-50 p-4">
+
+                <div className="flex items-center justify-between">
+
+                  <div>
+
+                    <div className="font-semibold text-gray-900">
+                      VAT
+                    </div>
+
+                    <div className="text-sm text-gray-500">
+                      {vatEnabled
+                        ? `${vatRate}% VAT will be charged`
+                        : "No VAT will be charged"}
+                    </div>
+
+                  </div>
+
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={vatEnabled}
+                    onClick={() =>
+                      setVatEnabled(
+                        (current) => !current
+                      )
+                    }
+                    className={`relative inline-flex h-7 w-14 items-center rounded-full transition ${
+                      vatEnabled
+                        ? "bg-green-600"
+                        : "bg-gray-300"
+                    }`}
+                  >
+
+                    <span
+                      className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition ${
+                        vatEnabled
+                          ? "translate-x-8"
+                          : "translate-x-1"
+                      }`}
+                    />
+
+                  </button>
+
+                </div>
+
+                <div className="mt-3 text-sm font-semibold">
+
+                  {vatEnabled ? (
+                    <span className="text-green-700">
+                      VAT ON — {vatRate}%
+                    </span>
+                  ) : (
+                    <span className="text-gray-600">
+                      VAT OFF
+                    </span>
+                  )}
+
                 </div>
 
               </div>
 
+              {/* CUSTOMER SUMMARY */}
               {customer && (
-
                 <div className="rounded-lg bg-blue-50 p-4">
 
                   <div className="font-semibold">
@@ -299,64 +467,132 @@ export default function NewInvoicePage() {
                   </div>
 
                 </div>
-
               )}
-                            <hr />
 
+              {/* SITE SUMMARY */}
+              {site.trim() && (
+                <div className="rounded-lg bg-gray-50 p-4">
+
+                  <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    Site
+                  </div>
+
+                  <div className="mt-1 font-semibold text-gray-900">
+                    {site}
+                  </div>
+
+                </div>
+              )}
+
+              <hr />
+
+              {/* SUBTOTAL */}
               <div className="flex justify-between text-lg">
 
-                <span>Subtotal</span>
+                <span>
+                  Subtotal
+                </span>
 
                 <span className="font-semibold">
                   R{" "}
-                  {subtotal.toLocaleString("en-ZA", {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}
+                  {subtotal.toLocaleString(
+                    "en-ZA",
+                    {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    }
+                  )}
                 </span>
 
               </div>
 
+              {/* VAT */}
               <div className="flex justify-between text-lg">
 
-                <span>VAT</span>
+                <span>
+                  VAT
+                  {vatEnabled
+                    ? ` (${vatRate}%)`
+                    : ""}
+                </span>
 
                 <span className="font-semibold">
-                  Not Registered
+
+                  {vatEnabled
+                    ? `R ${vatAmount.toLocaleString(
+                        "en-ZA",
+                        {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        }
+                      )}`
+                    : "Not Registered"}
+
                 </span>
 
               </div>
 
+              {/* TOTAL */}
               <div className="border-t pt-4">
 
                 <div className="flex justify-between text-2xl font-bold">
 
-                  <span>Total</span>
+                  <span>
+                    Total
+                  </span>
 
                   <span>
                     R{" "}
-                    {subtotal.toLocaleString("en-ZA", {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
+                    {total.toLocaleString(
+                      "en-ZA",
+                      {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      }
+                    )}
                   </span>
 
                 </div>
 
               </div>
 
-              <div className="rounded-lg border border-yellow-300 bg-yellow-50 p-4 text-sm text-yellow-800">
+              {/* VAT NOTICE */}
+              {!vatEnabled ? (
 
-                <strong>Notice</strong>
+                <div className="rounded-lg border border-yellow-300 bg-yellow-50 p-4 text-sm text-yellow-800">
 
-                <p className="mt-2">
-                  SkipCo Solutions is currently not VAT
-                  registered. VAT will therefore not be
-                  charged on this invoice.
-                </p>
+                  <strong>
+                    Notice
+                  </strong>
 
-              </div>
+                  <p className="mt-2">
+                    VAT is currently switched
+                    off for this invoice. No VAT
+                    will be charged.
+                  </p>
 
+                </div>
+
+              ) : (
+
+                <div className="rounded-lg border border-green-300 bg-green-50 p-4 text-sm text-green-800">
+
+                  <strong>
+                    VAT Enabled
+                  </strong>
+
+                  <p className="mt-2">
+                    VAT is switched on at{" "}
+                    {vatRate}%. The VAT amount
+                    will be added to the invoice
+                    total.
+                  </p>
+
+                </div>
+
+              )}
+
+              {/* CREATE */}
               <button
                 type="button"
                 onClick={saveInvoice}
@@ -375,7 +611,6 @@ export default function NewInvoicePage() {
         </div>
 
       </div>
-
     </DashboardShell>
   );
 }

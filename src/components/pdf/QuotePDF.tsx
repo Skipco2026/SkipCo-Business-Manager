@@ -33,7 +33,7 @@ export interface QuoteData {
   status: string;
   notes?: string;
   customer: QuoteCustomer;
-
+  site?: string | null;
   vat_enabled?: boolean;
   vat_rate?: number;
 }
@@ -43,38 +43,35 @@ interface QuotePDFProps {
   items: QuoteItem[];
 }
 
-/* =========================================================
-   STYLES
-   Same layout and sizing as InvoicePDF
-   ========================================================= */
-
 const styles = StyleSheet.create({
   page: {
     width: "100%",
     height: "100%",
-    paddingTop: 28,
-    paddingBottom: 24,
-    paddingLeft: 34,
-    paddingRight: 34,
+    paddingTop: 34,
+    paddingBottom: 42,
+    paddingLeft: 38,
+    paddingRight: 38,
     fontFamily: "Helvetica",
     fontSize: 8,
     color: "#222222",
     backgroundColor: "#FFFFFF",
   },
 
-  /* =======================================================
-     HEADER
-  ======================================================= */
-
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: 12,
+    marginBottom: 16,
   },
 
   logoArea: {
     width: "55%",
+  },
+
+  registeredName: {
+    fontSize: 6.5,
+    color: "#666666",
+    marginBottom: 5,
   },
 
   logo: {
@@ -86,7 +83,7 @@ const styles = StyleSheet.create({
   quoteHeading: {
     width: "40%",
     alignItems: "flex-end",
-    paddingTop: 8,
+    paddingTop: 10,
   },
 
   quoteTitle: {
@@ -94,12 +91,12 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     letterSpacing: 1,
     color: "#222222",
-    marginBottom: 8,
+    marginBottom: 10,
   },
 
   quoteInfoRow: {
     flexDirection: "row",
-    marginBottom: 3,
+    marginBottom: 4,
   },
 
   quoteInfoLabel: {
@@ -120,17 +117,13 @@ const styles = StyleSheet.create({
   cyanLine: {
     height: 3,
     backgroundColor: "#20AEB8",
-    marginBottom: 12,
+    marginBottom: 18,
   },
-
-  /* =======================================================
-     COMPANY DETAILS
-  ======================================================= */
 
   companyDetails: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 13,
+    marginBottom: 18,
   },
 
   companyDetailsLeft: {
@@ -145,19 +138,15 @@ const styles = StyleSheet.create({
   companyName: {
     fontSize: 11,
     fontWeight: "bold",
-    marginBottom: 3,
+    marginBottom: 4,
     color: "#20AEB8",
   },
 
   smallText: {
     fontSize: 7.5,
     color: "#555555",
-    marginBottom: 2,
+    marginBottom: 2.5,
   },
-
-  /* =======================================================
-     CUSTOMER INFORMATION
-  ======================================================= */
 
   parties: {
     flexDirection: "row",
@@ -165,9 +154,9 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderBottomWidth: 1,
     borderColor: "#D9DDE3",
-    paddingTop: 9,
-    paddingBottom: 9,
-    marginBottom: 13,
+    paddingTop: 12,
+    paddingBottom: 12,
+    marginBottom: 14,
   },
 
   partyBox: {
@@ -178,19 +167,42 @@ const styles = StyleSheet.create({
     fontSize: 8,
     fontWeight: "bold",
     color: "#20AEB8",
-    marginBottom: 5,
+    marginBottom: 6,
     textTransform: "uppercase",
   },
 
   partyName: {
     fontSize: 10,
     fontWeight: "bold",
-    marginBottom: 3,
+    marginBottom: 4,
   },
 
-  /* =======================================================
-     TABLE
-  ======================================================= */
+  siteSection: {
+    borderBottomWidth: 1,
+    borderBottomColor: "#D9DDE3",
+    paddingBottom: 12,
+    marginBottom: 18,
+  },
+
+  siteHeading: {
+    fontSize: 8,
+    fontWeight: "bold",
+    color: "#20AEB8",
+    marginBottom: 5,
+    textTransform: "uppercase",
+  },
+
+  siteName: {
+    fontSize: 10,
+    fontWeight: "bold",
+    color: "#222222",
+    lineHeight: 1.3,
+  },
+
+  siteEmpty: {
+    fontSize: 8,
+    color: "#999999",
+  },
 
   table: {
     width: "100%",
@@ -199,8 +211,8 @@ const styles = StyleSheet.create({
   tableHeader: {
     flexDirection: "row",
     backgroundColor: "#20AEB8",
-    paddingTop: 6,
-    paddingBottom: 6,
+    paddingTop: 7,
+    paddingBottom: 7,
     paddingLeft: 5,
     paddingRight: 5,
   },
@@ -213,11 +225,11 @@ const styles = StyleSheet.create({
 
   tableRow: {
     flexDirection: "row",
-    minHeight: 25,
+    minHeight: 28,
     borderBottomWidth: 1,
     borderBottomColor: "#E6E6E6",
-    paddingTop: 5,
-    paddingBottom: 5,
+    paddingTop: 7,
+    paddingBottom: 7,
     paddingLeft: 5,
     paddingRight: 5,
   },
@@ -249,12 +261,8 @@ const styles = StyleSheet.create({
     fontSize: 7.5,
   },
 
-  /* =======================================================
-     TOTALS
-  ======================================================= */
-
   totals: {
-    marginTop: 8,
+    marginTop: 14,
     marginLeft: "58%",
     width: "42%",
   },
@@ -262,8 +270,8 @@ const styles = StyleSheet.create({
   totalsRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    paddingTop: 3,
-    paddingBottom: 3,
+    paddingTop: 4,
+    paddingBottom: 4,
   },
 
   totalsLabel: {
@@ -279,14 +287,14 @@ const styles = StyleSheet.create({
   totalTopLine: {
     borderTopWidth: 1,
     borderTopColor: "#999999",
-    marginTop: 3,
+    marginTop: 4,
   },
 
   grandTotalRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    paddingTop: 5,
-    paddingBottom: 5,
+    paddingTop: 7,
+    paddingBottom: 7,
     borderBottomWidth: 2,
     borderBottomColor: "#20AEB8",
   },
@@ -302,19 +310,15 @@ const styles = StyleSheet.create({
     color: "#20AEB8",
   },
 
-  /* =======================================================
-     NOTES
-  ======================================================= */
-
   notes: {
-    marginTop: 10,
+    marginTop: 18,
   },
 
   sectionHeading: {
     fontSize: 8,
     fontWeight: "bold",
     color: "#20AEB8",
-    marginBottom: 3,
+    marginBottom: 5,
     textTransform: "uppercase",
   },
 
@@ -324,33 +328,25 @@ const styles = StyleSheet.create({
     lineHeight: 1.25,
   },
 
-  /* =======================================================
-     TERMS
-  ======================================================= */
-
   terms: {
-    marginTop: 8,
+    marginTop: 18,
   },
 
   termText: {
     fontSize: 7,
     color: "#666666",
-    lineHeight: 1.25,
-    marginBottom: 1,
+    lineHeight: 1.3,
+    marginBottom: 2,
   },
-
-  /* =======================================================
-     FOOTER
-  ======================================================= */
 
   footer: {
     position: "absolute",
-    bottom: 18,
-    left: 34,
-    right: 34,
+    bottom: 20,
+    left: 38,
+    right: 38,
     borderTopWidth: 1,
     borderTopColor: "#D9DDE3",
-    paddingTop: 6,
+    paddingTop: 7,
     flexDirection: "row",
     justifyContent: "space-between",
   },
@@ -367,13 +363,9 @@ const styles = StyleSheet.create({
   footerText: {
     fontSize: 6.5,
     color: "#777777",
-    marginBottom: 1,
+    marginBottom: 1.5,
   },
 });
-
-/* =========================================================
-   HELPERS
-   ========================================================= */
 
 function formatCurrency(value: number) {
   return `R ${Number(value || 0).toLocaleString("en-ZA", {
@@ -400,18 +392,12 @@ function formatDate(value: string) {
   });
 }
 
-/* =========================================================
-   PDF
-   ========================================================= */
-
 export default function QuotePDF({
   quote,
   items,
 }: QuotePDFProps) {
   const vatEnabled = quote.vat_enabled === true;
-
   const vatRate = Number(quote.vat_rate ?? 15);
-
   const subtotal = Number(quote.subtotal || 0);
 
   const vatAmount = vatEnabled
@@ -424,38 +410,51 @@ export default function QuotePDF({
     ? calculatedTotal
     : Number(quote.total || subtotal);
 
+  /*
+   * SITE AUTOMATICALLY COMES FROM THE QUOTE.
+   *
+   * First choice:
+   * A specific site saved on the quote.
+   *
+   * Second choice:
+   * The customer's physical address.
+   *
+   * Third choice:
+   * No site specified.
+   */
+  const siteValue =
+    quote.site?.trim() ||
+    quote.customer.physical_address?.trim() ||
+    "";
+
   return (
     <Document>
-
       <Page
         size="A4"
+        orientation="portrait"
         style={styles.page}
-        wrap={false}
+        wrap
       >
-
-        {/* =================================================
-            HEADER
-        ================================================= */}
+        {/* HEADER */}
 
         <View style={styles.header}>
-
           <View style={styles.logoArea}>
+            <Text style={styles.registeredName}>
+              DDW Consolidate t/a SkipCo Solutions
+            </Text>
 
             <Image
               src="/skipco-logo.jpg"
               style={styles.logo}
             />
-
           </View>
 
           <View style={styles.quoteHeading}>
-
             <Text style={styles.quoteTitle}>
               QUOTATION
             </Text>
 
             <View style={styles.quoteInfoRow}>
-
               <Text style={styles.quoteInfoLabel}>
                 Quote No.
               </Text>
@@ -463,11 +462,9 @@ export default function QuotePDF({
               <Text style={styles.quoteInfoValue}>
                 {quote.quote_number}
               </Text>
-
             </View>
 
             <View style={styles.quoteInfoRow}>
-
               <Text style={styles.quoteInfoLabel}>
                 Quote Date
               </Text>
@@ -475,11 +472,9 @@ export default function QuotePDF({
               <Text style={styles.quoteInfoValue}>
                 {formatDate(quote.quote_date)}
               </Text>
-
             </View>
 
             <View style={styles.quoteInfoRow}>
-
               <Text style={styles.quoteInfoLabel}>
                 Valid Until
               </Text>
@@ -487,23 +482,16 @@ export default function QuotePDF({
               <Text style={styles.quoteInfoValue}>
                 {formatDate(quote.valid_until)}
               </Text>
-
             </View>
-
           </View>
-
         </View>
 
         <View style={styles.cyanLine} />
 
-        {/* =================================================
-            COMPANY DETAILS
-        ================================================= */}
+        {/* COMPANY DETAILS */}
 
         <View style={styles.companyDetails}>
-
           <View style={styles.companyDetailsLeft}>
-
             <Text style={styles.companyName}>
               Skip Co Solutions
             </Text>
@@ -511,11 +499,9 @@ export default function QuotePDF({
             <Text style={styles.smallText}>
               Skip Hire & Waste Removal
             </Text>
-
           </View>
 
           <View style={styles.companyDetailsRight}>
-
             <Text style={styles.smallText}>
               Pellesier, Bloemfontein
             </Text>
@@ -527,19 +513,13 @@ export default function QuotePDF({
             <Text style={styles.smallText}>
               ddw.trading@outlook.com
             </Text>
-
           </View>
-
         </View>
 
-        {/* =================================================
-            QUOTE FROM / QUOTE TO
-        ================================================= */}
+        {/* QUOTE FROM / QUOTE TO */}
 
         <View style={styles.parties}>
-
           <View style={styles.partyBox}>
-
             <Text style={styles.partyHeading}>
               Quote From
             </Text>
@@ -559,11 +539,9 @@ export default function QuotePDF({
             <Text style={styles.smallText}>
               ddw.trading@outlook.com
             </Text>
-
           </View>
 
           <View style={styles.partyBox}>
-
             <Text style={styles.partyHeading}>
               Quote To
             </Text>
@@ -595,19 +573,31 @@ export default function QuotePDF({
                 {quote.customer.physical_address}
               </Text>
             )}
-
           </View>
-
         </View>
 
-        {/* =================================================
-            ITEMS TABLE
-        ================================================= */}
+        {/* SITE */}
+
+        <View style={styles.siteSection}>
+          <Text style={styles.siteHeading}>
+            Site
+          </Text>
+
+          {siteValue ? (
+            <Text style={styles.siteName}>
+              {siteValue}
+            </Text>
+          ) : (
+            <Text style={styles.siteEmpty}>
+              No site specified
+            </Text>
+          )}
+        </View>
+
+        {/* ITEMS TABLE */}
 
         <View style={styles.table}>
-
           <View style={styles.tableHeader}>
-
             <Text
               style={[
                 styles.tableHeaderText,
@@ -652,11 +642,9 @@ export default function QuotePDF({
             >
               TOTAL
             </Text>
-
           </View>
 
           {items.map((item, index) => (
-
             <View
               key={
                 item.id ??
@@ -664,7 +652,6 @@ export default function QuotePDF({
               }
               style={styles.tableRow}
             >
-
               <Text
                 style={[
                   styles.tableText,
@@ -709,21 +696,14 @@ export default function QuotePDF({
               >
                 {formatCurrency(item.line_total)}
               </Text>
-
             </View>
-
           ))}
-
         </View>
 
-        {/* =================================================
-            TOTALS
-        ================================================= */}
+        {/* TOTALS */}
 
         <View style={styles.totals}>
-
           <View style={styles.totalsRow}>
-
             <Text style={styles.totalsLabel}>
               Subtotal
             </Text>
@@ -731,13 +711,10 @@ export default function QuotePDF({
             <Text style={styles.totalsValue}>
               {formatCurrency(subtotal)}
             </Text>
-
           </View>
 
           {vatEnabled && (
-
             <View style={styles.totalsRow}>
-
               <Text style={styles.totalsLabel}>
                 VAT ({vatRate.toFixed(2)}%)
               </Text>
@@ -745,15 +722,12 @@ export default function QuotePDF({
               <Text style={styles.totalsValue}>
                 {formatCurrency(vatAmount)}
               </Text>
-
             </View>
-
           )}
 
           <View style={styles.totalTopLine} />
 
           <View style={styles.grandTotalRow}>
-
             <Text style={styles.grandTotalLabel}>
               TOTAL
             </Text>
@@ -761,19 +735,13 @@ export default function QuotePDF({
             <Text style={styles.grandTotalValue}>
               {formatCurrency(total)}
             </Text>
-
           </View>
-
         </View>
 
-        {/* =================================================
-            NOTES
-        ================================================= */}
+        {/* NOTES */}
 
         {quote.notes && (
-
           <View style={styles.notes}>
-
             <Text style={styles.sectionHeading}>
               Notes
             </Text>
@@ -781,17 +749,12 @@ export default function QuotePDF({
             <Text style={styles.notesText}>
               {quote.notes}
             </Text>
-
           </View>
-
         )}
 
-        {/* =================================================
-            TERMS & CONDITIONS
-        ================================================= */}
+        {/* TERMS */}
 
         <View style={styles.terms}>
-
           <Text style={styles.sectionHeading}>
             Terms & Conditions
           </Text>
@@ -802,13 +765,13 @@ export default function QuotePDF({
           </Text>
 
           <Text style={styles.termText}>
-            • Prices are subject to change
-            after the quotation expiry date.
+            • Prices are subject to change after
+            the quotation expiry date.
           </Text>
 
           <Text style={styles.termText}>
-            • Payment terms are as agreed
-            with the customer.
+            • Payment terms are as agreed with
+            the customer.
           </Text>
 
           <Text style={styles.termText}>
@@ -821,17 +784,12 @@ export default function QuotePDF({
               {vatRate.toFixed(2)}%.
             </Text>
           )}
-
         </View>
 
-        {/* =================================================
-            FOOTER
-        ================================================= */}
+        {/* FOOTER */}
 
         <View style={styles.footer}>
-
           <View style={styles.footerLeft}>
-
             <Text style={styles.footerText}>
               Skip Co Solutions
             </Text>
@@ -839,11 +797,9 @@ export default function QuotePDF({
             <Text style={styles.footerText}>
               Pellesier, Bloemfontein
             </Text>
-
           </View>
 
           <View style={styles.footerRight}>
-
             <Text style={styles.footerText}>
               062 737 9728
             </Text>
@@ -851,13 +807,9 @@ export default function QuotePDF({
             <Text style={styles.footerText}>
               ddw.trading@outlook.com
             </Text>
-
           </View>
-
         </View>
-
       </Page>
-
     </Document>
   );
 }

@@ -33,7 +33,7 @@ export interface InvoiceData {
   status: string;
   notes?: string;
   customer: InvoiceCustomer;
-
+  site?: string | null;
   vat_enabled?: boolean;
   vat_rate?: number;
 }
@@ -47,12 +47,12 @@ const styles = StyleSheet.create({
   page: {
     width: "100%",
     height: "100%",
-    paddingTop: 38,
-    paddingBottom: 38,
-    paddingLeft: 42,
-    paddingRight: 42,
+    paddingTop: 34,
+    paddingBottom: 42,
+    paddingLeft: 38,
+    paddingRight: 38,
     fontFamily: "Helvetica",
-    fontSize: 9,
+    fontSize: 8,
     color: "#222222",
     backgroundColor: "#FFFFFF",
   },
@@ -65,57 +65,63 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: 20,
+    marginBottom: 16,
   },
 
   logoArea: {
     width: "55%",
   },
 
+  registeredName: {
+    fontSize: 6.5,
+    color: "#666666",
+    marginBottom: 5,
+  },
+
   logo: {
-    width: 210,
-    height: 112,
+    width: 175,
+    height: 94,
     objectFit: "contain",
   },
 
   invoiceHeading: {
     width: "40%",
     alignItems: "flex-end",
-    paddingTop: 14,
+    paddingTop: 10,
   },
 
   invoiceTitle: {
-    fontSize: 27,
+    fontSize: 22,
     fontWeight: "bold",
-    letterSpacing: 1.5,
+    letterSpacing: 1,
     color: "#222222",
-    marginBottom: 12,
+    marginBottom: 10,
   },
 
   invoiceInfoRow: {
     flexDirection: "row",
-    marginBottom: 6,
+    marginBottom: 4,
   },
 
   invoiceInfoLabel: {
-    width: 72,
+    width: 65,
     textAlign: "right",
     color: "#777777",
-    fontSize: 8.5,
-    marginRight: 9,
+    fontSize: 8,
+    marginRight: 7,
   },
 
   invoiceInfoValue: {
-    width: 88,
+    width: 75,
     textAlign: "right",
     fontWeight: "bold",
-    fontSize: 8.5,
+    fontSize: 8,
   },
 
   cyanLine: {
-    height: 4,
-    backgroundColor: "#55D3DC",
-    marginBottom: 20,
+    height: 3,
+    backgroundColor: "#20AEB8",
+    marginBottom: 18,
   },
 
   /* =====================================================
@@ -125,35 +131,33 @@ const styles = StyleSheet.create({
   companyDetails: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 20,
-    minHeight: 48,
+    marginBottom: 18,
   },
 
   companyDetailsLeft: {
     width: "48%",
-    justifyContent: "center",
   },
 
   companyDetailsRight: {
     width: "48%",
     alignItems: "flex-end",
-    justifyContent: "center",
   },
 
   companyName: {
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: "bold",
-    marginBottom: 5,
+    marginBottom: 4,
+    color: "#20AEB8",
   },
 
   smallText: {
-    fontSize: 8,
+    fontSize: 7.5,
     color: "#555555",
-    marginBottom: 4,
+    marginBottom: 2.5,
   },
 
   /* =====================================================
-     CUSTOMER INFORMATION
+     PARTIES
   ===================================================== */
 
   parties: {
@@ -162,29 +166,58 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderBottomWidth: 1,
     borderColor: "#D9DDE3",
-    paddingTop: 16,
-    paddingBottom: 16,
-    marginBottom: 22,
-    minHeight: 105,
+    paddingTop: 12,
+    paddingBottom: 12,
+    marginBottom: 14,
   },
 
   partyBox: {
     width: "48%",
-    justifyContent: "center",
   },
 
   partyHeading: {
-    fontSize: 8.5,
+    fontSize: 8,
     fontWeight: "bold",
-    color: "#55BFC8",
-    marginBottom: 8,
+    color: "#20AEB8",
+    marginBottom: 6,
     textTransform: "uppercase",
   },
 
   partyName: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: "bold",
+    marginBottom: 4,
+  },
+
+  /* =====================================================
+     SITE
+  ===================================================== */
+
+  siteSection: {
+    borderBottomWidth: 1,
+    borderBottomColor: "#D9DDE3",
+    paddingBottom: 12,
+    marginBottom: 18,
+  },
+
+  siteHeading: {
+    fontSize: 8,
+    fontWeight: "bold",
+    color: "#20AEB8",
     marginBottom: 5,
+    textTransform: "uppercase",
+  },
+
+  siteName: {
+    fontSize: 10,
+    fontWeight: "bold",
+    color: "#222222",
+    lineHeight: 1.3,
+  },
+
+  siteEmpty: {
+    fontSize: 8,
+    color: "#999999",
   },
 
   /* =====================================================
@@ -197,28 +230,28 @@ const styles = StyleSheet.create({
 
   tableHeader: {
     flexDirection: "row",
-    backgroundColor: "#55D3DC",
-    paddingTop: 9,
-    paddingBottom: 9,
-    paddingLeft: 7,
-    paddingRight: 7,
+    backgroundColor: "#20AEB8",
+    paddingTop: 7,
+    paddingBottom: 7,
+    paddingLeft: 5,
+    paddingRight: 5,
   },
 
   tableHeaderText: {
-    fontSize: 8,
+    fontSize: 7.5,
     fontWeight: "bold",
     color: "#FFFFFF",
   },
 
   tableRow: {
     flexDirection: "row",
-    minHeight: 38,
+    minHeight: 28,
     borderBottomWidth: 1,
     borderBottomColor: "#E6E6E6",
-    paddingTop: 9,
-    paddingBottom: 9,
-    paddingLeft: 7,
-    paddingRight: 7,
+    paddingTop: 7,
+    paddingBottom: 7,
+    paddingLeft: 5,
+    paddingRight: 5,
   },
 
   numberColumn: {
@@ -245,7 +278,7 @@ const styles = StyleSheet.create({
   },
 
   tableText: {
-    fontSize: 8.5,
+    fontSize: 7.5,
   },
 
   /* =====================================================
@@ -253,7 +286,7 @@ const styles = StyleSheet.create({
   ===================================================== */
 
   totals: {
-    marginTop: 22,
+    marginTop: 14,
     marginLeft: "58%",
     width: "42%",
   },
@@ -261,44 +294,44 @@ const styles = StyleSheet.create({
   totalsRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    paddingTop: 5,
-    paddingBottom: 5,
+    paddingTop: 4,
+    paddingBottom: 4,
   },
 
   totalsLabel: {
-    fontSize: 8.5,
+    fontSize: 8,
     color: "#555555",
   },
 
   totalsValue: {
-    fontSize: 8.5,
+    fontSize: 8,
     fontWeight: "bold",
   },
 
   totalTopLine: {
     borderTopWidth: 1,
     borderTopColor: "#999999",
-    marginTop: 5,
+    marginTop: 4,
   },
 
   grandTotalRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    paddingTop: 9,
-    paddingBottom: 9,
+    paddingTop: 7,
+    paddingBottom: 7,
     borderBottomWidth: 2,
-    borderBottomColor: "#55D3DC",
+    borderBottomColor: "#20AEB8",
   },
 
   grandTotalLabel: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: "bold",
   },
 
   grandTotalValue: {
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: "bold",
-    color: "#222222",
+    color: "#20AEB8",
   },
 
   /* =====================================================
@@ -306,22 +339,21 @@ const styles = StyleSheet.create({
   ===================================================== */
 
   notes: {
-    marginTop: 22,
-    minHeight: 45,
+    marginTop: 18,
   },
 
   sectionHeading: {
-    fontSize: 8.5,
+    fontSize: 8,
     fontWeight: "bold",
-    color: "#55BFC8",
-    marginBottom: 7,
+    color: "#20AEB8",
+    marginBottom: 5,
     textTransform: "uppercase",
   },
 
   notesText: {
-    fontSize: 8,
+    fontSize: 7.5,
     color: "#555555",
-    lineHeight: 1.35,
+    lineHeight: 1.25,
   },
 
   /* =====================================================
@@ -329,15 +361,14 @@ const styles = StyleSheet.create({
   ===================================================== */
 
   terms: {
-    marginTop: 16,
-    minHeight: 65,
+    marginTop: 18,
   },
 
   termText: {
-    fontSize: 7.5,
+    fontSize: 7,
     color: "#666666",
-    lineHeight: 1.4,
-    marginBottom: 4,
+    lineHeight: 1.3,
+    marginBottom: 2,
   },
 
   /* =====================================================
@@ -346,12 +377,12 @@ const styles = StyleSheet.create({
 
   footer: {
     position: "absolute",
-    bottom: 22,
-    left: 42,
-    right: 42,
+    bottom: 20,
+    left: 38,
+    right: 38,
     borderTopWidth: 1,
     borderTopColor: "#D9DDE3",
-    paddingTop: 9,
+    paddingTop: 7,
     flexDirection: "row",
     justifyContent: "space-between",
   },
@@ -366,9 +397,9 @@ const styles = StyleSheet.create({
   },
 
   footerText: {
-    fontSize: 7,
+    fontSize: 6.5,
     color: "#777777",
-    marginBottom: 2,
+    marginBottom: 1.5,
   },
 });
 
@@ -411,54 +442,62 @@ export default function InvoicePDF({
 }: InvoicePDFProps) {
   const vatEnabled = invoice.vat_enabled === true;
 
-  const vatRate = Number(
-    invoice.vat_rate ?? 15
-  );
+  const vatRate = Number(invoice.vat_rate ?? 15);
 
-  const subtotal = Number(
-    invoice.subtotal || 0
-  );
+  const subtotal = Number(invoice.subtotal || 0);
 
   const vatAmount = vatEnabled
     ? subtotal * (vatRate / 100)
     : 0;
 
-  const calculatedTotal =
-    subtotal + vatAmount;
+  const calculatedTotal = subtotal + vatAmount;
 
   const total = vatEnabled
     ? calculatedTotal
     : Number(invoice.total || subtotal);
 
+  /*
+   * SITE AUTOMATICALLY COMES FROM THE INVOICE.
+   *
+   * First choice:
+   * A specific site saved on the invoice.
+   *
+   * Second choice:
+   * The customer's physical address.
+   *
+   * Third choice:
+   * No site specified.
+   */
+  const siteValue =
+    invoice.site?.trim() ||
+    invoice.customer.physical_address?.trim() ||
+    "";
+
   return (
     <Document>
       <Page
         size="A4"
+        orientation="portrait"
         style={styles.page}
-        wrap={false}
+        wrap
       >
-
-        {/* ================================
-            HEADER
-        ================================= */}
+        {/* HEADER */}
 
         <View style={styles.header}>
-
           <View style={styles.logoArea}>
+            <Text style={styles.registeredName}>
+              DDW Consolidate t/a SkipCo Solutions
+            </Text>
+
             <Image
-              src={
-                typeof window !== "undefined"
-                  ? `${window.location.origin}/skipco-logo.jpg`
-                  : "/skipco-logo.jpg"
-              }
+              src="/skipco-logo.jpg"
               style={styles.logo}
             />
           </View>
 
           <View style={styles.invoiceHeading}>
-
             <Text style={styles.invoiceTitle}>
-              INVOICE
+              TAX INVOICE
             </Text>
 
             <View style={styles.invoiceInfoRow}>
@@ -490,20 +529,15 @@ export default function InvoicePDF({
                 {formatDate(invoice.due_date)}
               </Text>
             </View>
-
           </View>
         </View>
 
         <View style={styles.cyanLine} />
 
-        {/* ================================
-            COMPANY DETAILS
-        ================================= */}
+        {/* COMPANY DETAILS */}
 
         <View style={styles.companyDetails}>
-
           <View style={styles.companyDetailsLeft}>
-
             <Text style={styles.companyName}>
               Skip Co Solutions
             </Text>
@@ -511,11 +545,9 @@ export default function InvoicePDF({
             <Text style={styles.smallText}>
               Skip Hire & Waste Removal
             </Text>
-
           </View>
 
           <View style={styles.companyDetailsRight}>
-
             <Text style={styles.smallText}>
               Pellesier, Bloemfontein
             </Text>
@@ -527,19 +559,13 @@ export default function InvoicePDF({
             <Text style={styles.smallText}>
               ddw.trading@outlook.com
             </Text>
-
           </View>
-
         </View>
 
-        {/* ================================
-            FROM / BILL TO
-        ================================= */}
+        {/* INVOICE FROM / INVOICE TO */}
 
         <View style={styles.parties}>
-
           <View style={styles.partyBox}>
-
             <Text style={styles.partyHeading}>
               Invoice From
             </Text>
@@ -559,13 +585,11 @@ export default function InvoicePDF({
             <Text style={styles.smallText}>
               ddw.trading@outlook.com
             </Text>
-
           </View>
 
           <View style={styles.partyBox}>
-
             <Text style={styles.partyHeading}>
-              Bill To
+              Invoice To
             </Text>
 
             <Text style={styles.partyName}>
@@ -595,19 +619,31 @@ export default function InvoicePDF({
                 {invoice.customer.physical_address}
               </Text>
             )}
-
           </View>
-
         </View>
 
-        {/* ================================
-            ITEMS
-        ================================= */}
+        {/* SITE */}
+
+        <View style={styles.siteSection}>
+          <Text style={styles.siteHeading}>
+            Site
+          </Text>
+
+          {siteValue ? (
+            <Text style={styles.siteName}>
+              {siteValue}
+            </Text>
+          ) : (
+            <Text style={styles.siteEmpty}>
+              No site specified
+            </Text>
+          )}
+        </View>
+
+        {/* ITEMS TABLE */}
 
         <View style={styles.table}>
-
           <View style={styles.tableHeader}>
-
             <Text
               style={[
                 styles.tableHeaderText,
@@ -652,7 +688,6 @@ export default function InvoicePDF({
             >
               TOTAL
             </Text>
-
           </View>
 
           {items.map((item, index) => (
@@ -663,7 +698,6 @@ export default function InvoicePDF({
               }
               style={styles.tableRow}
             >
-
               <Text
                 style={[
                   styles.tableText,
@@ -697,9 +731,7 @@ export default function InvoicePDF({
                   styles.priceColumn,
                 ]}
               >
-                {formatCurrency(
-                  item.unit_price
-                )}
+                {formatCurrency(item.unit_price)}
               </Text>
 
               <Text
@@ -708,24 +740,16 @@ export default function InvoicePDF({
                   styles.totalColumn,
                 ]}
               >
-                {formatCurrency(
-                  item.line_total
-                )}
+                {formatCurrency(item.line_total)}
               </Text>
-
             </View>
           ))}
-
         </View>
 
-        {/* ================================
-            TOTALS
-        ================================= */}
+        {/* TOTALS */}
 
         <View style={styles.totals}>
-
           <View style={styles.totalsRow}>
-
             <Text style={styles.totalsLabel}>
               Subtotal
             </Text>
@@ -733,27 +757,23 @@ export default function InvoicePDF({
             <Text style={styles.totalsValue}>
               {formatCurrency(subtotal)}
             </Text>
-
           </View>
 
           {vatEnabled && (
             <View style={styles.totalsRow}>
-
               <Text style={styles.totalsLabel}>
-                VAT {vatRate.toFixed(2)}%
+                VAT ({vatRate.toFixed(2)}%)
               </Text>
 
               <Text style={styles.totalsValue}>
                 {formatCurrency(vatAmount)}
               </Text>
-
             </View>
           )}
 
           <View style={styles.totalTopLine} />
 
           <View style={styles.grandTotalRow}>
-
             <Text style={styles.grandTotalLabel}>
               TOTAL
             </Text>
@@ -761,18 +781,13 @@ export default function InvoicePDF({
             <Text style={styles.grandTotalValue}>
               {formatCurrency(total)}
             </Text>
-
           </View>
-
         </View>
 
-        {/* ================================
-            NOTES
-        ================================= */}
+        {/* NOTES */}
 
         {invoice.notes && (
           <View style={styles.notes}>
-
             <Text style={styles.sectionHeading}>
               Notes
             </Text>
@@ -780,16 +795,12 @@ export default function InvoicePDF({
             <Text style={styles.notesText}>
               {invoice.notes}
             </Text>
-
           </View>
         )}
 
-        {/* ================================
-            TERMS
-        ================================= */}
+        {/* TERMS */}
 
         <View style={styles.terms}>
-
           <Text style={styles.sectionHeading}>
             Terms & Conditions
           </Text>
@@ -800,25 +811,31 @@ export default function InvoicePDF({
           </Text>
 
           <Text style={styles.termText}>
-            • Prices are subject to change
-            after the invoice due date.
+            • Prices are subject to change after
+            the invoice due date.
           </Text>
 
           <Text style={styles.termText}>
-            • Payment terms are as agreed
-            with the customer.
+            • Payment terms are as agreed with
+            the customer.
           </Text>
 
+          <Text style={styles.termText}>
+            • All prices are in ZAR.
+          </Text>
+
+          {vatEnabled && (
+            <Text style={styles.termText}>
+              • VAT is charged at{" "}
+              {vatRate.toFixed(2)}%.
+            </Text>
+          )}
         </View>
 
-        {/* ================================
-            FOOTER
-        ================================= */}
+        {/* FOOTER */}
 
         <View style={styles.footer}>
-
           <View style={styles.footerLeft}>
-
             <Text style={styles.footerText}>
               Skip Co Solutions
             </Text>
@@ -826,11 +843,9 @@ export default function InvoicePDF({
             <Text style={styles.footerText}>
               Pellesier, Bloemfontein
             </Text>
-
           </View>
 
           <View style={styles.footerRight}>
-
             <Text style={styles.footerText}>
               062 737 9728
             </Text>
@@ -838,11 +853,8 @@ export default function InvoicePDF({
             <Text style={styles.footerText}>
               ddw.trading@outlook.com
             </Text>
-
           </View>
-
         </View>
-
       </Page>
     </Document>
   );

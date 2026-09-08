@@ -37,6 +37,7 @@ interface Quote {
   total: number;
   status: string;
   notes: string;
+  site: string | null;
   customer: Customer;
 }
 
@@ -54,6 +55,10 @@ export default function QuotePage() {
   }, []);
 
   async function loadQuote() {
+    setLoading(true);
+
+    const quoteId = String(params.id);
+
     const { data, error } = await supabase
       .from("quotes")
       .select(`
@@ -67,39 +72,46 @@ export default function QuotePage() {
           physical_address
         )
       `)
-      .eq("id", params.id)
+      .eq("id", quoteId)
       .single();
 
     if (error) {
-      console.error(error);
+      console.error("Error loading quote:", error);
       setLoading(false);
       return;
     }
 
-    const { data: quoteItems } = await supabase
+    const { data: quoteItems, error: itemsError } = await supabase
       .from("quote_items")
       .select("*")
-      .eq("quote_id", params.id)
+      .eq("quote_id", quoteId)
       .order("created_at");
 
-    setQuote(data);
-    setItems(quoteItems ?? []);
+    if (itemsError) {
+      console.error("Error loading quote items:", itemsError);
+    }
 
+    setQuote(data as Quote);
+    setItems((quoteItems ?? []) as QuoteItem[]);
     setLoading(false);
   }
 
   async function convertToInvoice() {
-    if (!quote) return;
-
-    if (
-      !window.confirm(
-        "Convert this quote into an invoice?"
-      )
-    ) {
+    if (!quote) {
       return;
     }
-        const today = new Date();
+
+    const confirmed = window.confirm(
+      "Convert this quote into an invoice?"
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    const today = new Date();
     const due = new Date();
+
     due.setDate(due.getDate() + 30);
 
     const { data: invoice, error: invoiceError } =
@@ -122,7 +134,7 @@ export default function QuotePage() {
         .single();
 
     if (invoiceError || !invoice) {
-      console.error(invoiceError);
+      console.error("Invoice creation error:", invoiceError);
       alert("Failed to create invoice.");
       return;
     }
@@ -136,25 +148,63 @@ export default function QuotePage() {
       line_total: item.line_total,
     }));
 
-    const { error: itemsError } =
-      await supabase
+    if (invoiceItems.length > 0) {
+      const { error: itemsError } = await supabase
         .from("invoice_items")
         .insert(invoiceItems);
 
-    if (itemsError) {
-      console.error(itemsError);
-      alert("Failed to copy quote items.");
-      return;
+      if (itemsError) {
+        console.error(
+          "Invoice items creation error:",
+          itemsError
+        );
+
+        alert("Failed to copy quote items.");
+        return;
+      }
     }
 
-    await supabase
+    const { error: quoteUpdateError } = await supabase
       .from("quotes")
       .update({
         status: "Converted",
       })
       .eq("id", quote.id);
 
+    if (quoteUpdateError) {
+      console.error(
+        "Quote status update error:",
+        quoteUpdateError
+      );
+    }
+
     router.push(`/invoices/${invoice.id}`);
+  }
+
+  function formatCurrency(value: number) {
+    return `R ${Number(value || 0).toLocaleString("en-ZA", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+  }
+
+  function getStatusClasses(status: string) {
+    switch (status) {
+      case "Draft":
+        return "bg-yellow-100 text-yellow-700";
+
+      case "Accepted":
+        return "bg-green-100 text-green-700";
+
+      case "Converted":
+        return "bg-purple-100 text-purple-700";
+
+      case "Declined":
+        return "bg-red-100 text-red-700";
+
+      default:
+        return "bg-blue-100 text-blue-700";
+    }
   }
 
   if (loading) {
@@ -177,11 +227,30 @@ export default function QuotePage() {
         subtitle="Not Found"
       >
         <div className="rounded-xl border bg-white p-8 shadow-sm">
-          Quote not found.
+          <p className="text-gray-700">
+            Quote not found.
+          </p>
+
+          <Link
+            href="/quotes"
+            className="mt-6 inline-block rounded-lg bg-blue-600 px-5 py-2 text-white transition hover:bg-blue-700"
+          >
+            Back to Quotes
+          </Link>
         </div>
       </DashboardShell>
     );
   }
+
+  /*
+   * QuotePDF expects the Site to be a string.
+   * Supabase can return NULL, so we convert NULL
+   * into an empty string when creating the PDF.
+   */
+  const pdfQuote = {
+    ...quote,
+    site: quote.site ?? "",
+  };
 
   return (
     <DashboardShell
@@ -189,13 +258,20 @@ export default function QuotePage() {
       subtitle={quote.customer.company_name}
     >
       <div className="mx-auto max-w-7xl space-y-8">
-              {/* Header */}
+
+        {/* =====================================================
+            HEADER
+        ===================================================== */}
 
         <div className="rounded-xl border bg-white p-8 shadow-sm">
 
           <div className="flex flex-col gap-8 lg:flex-row lg:justify-between">
 
             <div>
+
+              <p className="mb-2 text-xs font-medium text-gray-500">
+                DDW Consolidate t/a SkipCo Solutions
+              </p>
 
               <h1 className="text-3xl font-bold text-blue-700">
                 SkipCo Solutions
@@ -206,13 +282,9 @@ export default function QuotePage() {
               </p>
 
               <div className="mt-6 space-y-1 text-sm text-gray-500">
-
-                <p>Johannesburg, South Africa</p>
-
-                <p>info@skipco.co.za</p>
-
-                <p>+27 XX XXX XXXX</p>
-
+                <p>Pellesier, Bloemfontein</p>
+                <p>ddw.trading@outlook.com</p>
+                <p>062 737 9728</p>
               </div>
 
             </div>
@@ -226,7 +298,6 @@ export default function QuotePage() {
               <div className="mt-6 space-y-2 text-sm">
 
                 <div className="flex justify-between gap-8">
-
                   <span className="text-gray-500">
                     Quote No
                   </span>
@@ -234,51 +305,40 @@ export default function QuotePage() {
                   <span className="font-semibold">
                     {quote.quote_number}
                   </span>
-
                 </div>
 
                 <div className="flex justify-between gap-8">
-
                   <span className="text-gray-500">
                     Date
                   </span>
 
-                  <span>{quote.quote_date}</span>
-
+                  <span>
+                    {quote.quote_date}
+                  </span>
                 </div>
 
                 <div className="flex justify-between gap-8">
-
                   <span className="text-gray-500">
                     Valid Until
                   </span>
 
-                  <span>{quote.valid_until}</span>
-
+                  <span>
+                    {quote.valid_until}
+                  </span>
                 </div>
 
-                <div className="flex justify-between gap-8">
-
+                <div className="flex items-center justify-between gap-8">
                   <span className="text-gray-500">
                     Status
                   </span>
 
                   <span
-                    className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                      quote.status === "Draft"
-                        ? "bg-yellow-100 text-yellow-700"
-                        : quote.status === "Accepted"
-                        ? "bg-green-100 text-green-700"
-                        : quote.status === "Converted"
-                        ? "bg-purple-100 text-purple-700"
-                        : quote.status === "Declined"
-                        ? "bg-red-100 text-red-700"
-                        : "bg-blue-100 text-blue-700"
-                    }`}
+                    className={`rounded-full px-3 py-1 text-xs font-semibold ${getStatusClasses(
+                      quote.status
+                    )}`}
                   >
                     {quote.status}
                   </span>
-
                 </div>
 
               </div>
@@ -289,11 +349,13 @@ export default function QuotePage() {
 
         </div>
 
-        {/* Customer */}
+        {/* =====================================================
+            CUSTOMER
+        ===================================================== */}
 
         <div className="rounded-xl border bg-white p-8 shadow-sm">
 
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-4">
 
             <h2 className="text-xl font-bold">
               Customer
@@ -314,21 +376,59 @@ export default function QuotePage() {
               {quote.customer.company_name}
             </h3>
 
-            <p>{quote.customer.contact_person}</p>
+            {quote.customer.contact_person && (
+              <p>
+                {quote.customer.contact_person}
+              </p>
+            )}
 
-            <p>{quote.customer.email}</p>
+            {quote.customer.email && (
+              <p>
+                {quote.customer.email}
+              </p>
+            )}
 
-            <p>{quote.customer.phone}</p>
+            {quote.customer.phone && (
+              <p>
+                {quote.customer.phone}
+              </p>
+            )}
 
-            <p className="whitespace-pre-line">
-              {quote.customer.physical_address}
-            </p>
+            {quote.customer.physical_address && (
+              <p className="whitespace-pre-line">
+                {quote.customer.physical_address}
+              </p>
+            )}
 
           </div>
 
         </div>
 
-        {/* Quote Items */}
+        {/* =====================================================
+            SITE
+        ===================================================== */}
+
+        <div className="rounded-xl border bg-white p-8 shadow-sm">
+
+          <h2 className="text-sm font-bold uppercase tracking-wide text-cyan-600">
+            Site
+          </h2>
+
+          {quote.site ? (
+            <p className="mt-2 text-xl font-semibold text-gray-900">
+              {quote.site}
+            </p>
+          ) : (
+            <p className="mt-2 text-gray-400">
+              No site specified
+            </p>
+          )}
+
+        </div>
+
+        {/* =====================================================
+            QUOTE ITEMS
+        ===================================================== */}
 
         <div className="overflow-hidden rounded-xl border bg-white shadow-sm">
 
@@ -386,31 +486,37 @@ export default function QuotePage() {
                   </td>
 
                   <td className="px-6 py-5 text-right">
-                    R{" "}
-                    {item.unit_price.toLocaleString("en-ZA", {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
+                    {formatCurrency(item.unit_price)}
                   </td>
 
                   <td className="px-6 py-5 text-right font-semibold">
-                    R{" "}
-                    {item.line_total.toLocaleString("en-ZA", {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
+                    {formatCurrency(item.line_total)}
                   </td>
 
                 </tr>
 
               ))}
 
+              {items.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={5}
+                    className="px-6 py-10 text-center text-gray-500"
+                  >
+                    No items have been added to this quote.
+                  </td>
+                </tr>
+              )}
+
             </tbody>
 
           </table>
 
         </div>
-                {/* Notes */}
+
+        {/* =====================================================
+            NOTES
+        ===================================================== */}
 
         {quote.notes && (
 
@@ -428,7 +534,9 @@ export default function QuotePage() {
 
         )}
 
-        {/* Totals */}
+        {/* =====================================================
+            TOTALS
+        ===================================================== */}
 
         <div className="flex justify-end">
 
@@ -447,11 +555,7 @@ export default function QuotePage() {
                 </span>
 
                 <span className="font-semibold">
-                  R{" "}
-                  {quote.subtotal.toLocaleString("en-ZA", {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}
+                  {formatCurrency(quote.subtotal)}
                 </span>
 
               </div>
@@ -472,14 +576,12 @@ export default function QuotePage() {
 
                 <div className="flex justify-between text-2xl font-bold">
 
-                  <span>Total</span>
+                  <span>
+                    Total
+                  </span>
 
                   <span className="text-blue-700">
-                    R{" "}
-                    {quote.total.toLocaleString("en-ZA", {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
+                    {formatCurrency(quote.total)}
                   </span>
 
                 </div>
@@ -506,7 +608,9 @@ export default function QuotePage() {
 
         </div>
 
-        {/* Action Buttons */}
+        {/* =====================================================
+            ACTION BUTTONS
+        ===================================================== */}
 
         <div className="flex flex-wrap justify-end gap-4">
 
@@ -528,18 +632,18 @@ export default function QuotePage() {
           <PDFDownloadLink
             document={
               <QuotePDF
-                quote={quote}
+                quote={pdfQuote}
                 items={items}
               />
             }
             fileName={`${quote.quote_number}.pdf`}
           >
-            {({ loading }) => (
+            {({ loading: pdfLoading }) => (
               <button
                 type="button"
                 className="rounded-lg bg-red-600 px-6 py-3 font-medium text-white transition hover:bg-red-700"
               >
-                {loading
+                {pdfLoading
                   ? "Generating..."
                   : "Download PDF"}
               </button>
@@ -565,8 +669,8 @@ export default function QuotePage() {
           </button>
 
         </div>
-              </div>
 
+      </div>
     </DashboardShell>
   );
 }

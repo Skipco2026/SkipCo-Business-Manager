@@ -36,6 +36,7 @@ interface Invoice {
   total: number;
   status: string;
   notes: string;
+  site: string;
   customer: Customer;
 }
 
@@ -490,6 +491,7 @@ export default function InvoicePage() {
                   subtotal: invoice.subtotal,
                   total: invoice.total,
                   notes: invoice.notes,
+                  site: invoice.site,
                   customer: invoice.customer,
                 }}
                 items={items}

@@ -46,6 +46,8 @@ export default function NewQuotePage() {
   const [customer, setCustomer] =
     useState<Customer | null>(null);
 
+  const [site, setSite] = useState("");
+
   const [notes, setNotes] = useState("");
 
   const [quoteItems, setQuoteItems] =
@@ -170,11 +172,6 @@ export default function NewQuotePage() {
       return;
     }
 
-    if (quoteItems.length === 0) {
-      alert("Please add at least one product.");
-      return;
-    }
-
     if (
       vatEnabled &&
       (Number(vatRate) < 0 ||
@@ -199,9 +196,12 @@ export default function NewQuotePage() {
           customer_id: customer.id,
           quote_date: quoteDate,
           valid_until: validUntil,
+
+          site: site.trim() || null,
+
           subtotal: subtotal,
           total: total,
-          notes: notes,
+          notes: notes.trim() || null,
           status: "Draft",
 
           /*
@@ -232,31 +232,33 @@ export default function NewQuotePage() {
      * CREATE QUOTE ITEMS
      */
 
-    const quoteLines = quoteItems.map(
-      (item) => ({
-        quote_id: quote.id,
-        product_id: item.product_id,
-        description: item.description,
-        quantity: Number(item.quantity),
-        unit_price: Number(item.unit_price),
-        line_total:
-          Number(item.quantity) *
-          Number(item.unit_price),
-      })
-    );
+    if (quoteItems.length > 0) {
+      const quoteLines = quoteItems.map(
+        (item) => ({
+          quote_id: quote.id,
+          product_id: item.product_id,
+          description: item.description,
+          quantity: Number(item.quantity),
+          unit_price: Number(item.unit_price),
+          line_total:
+            Number(item.quantity) *
+            Number(item.unit_price),
+        })
+      );
 
-    const { error: itemError } =
-      await supabase
-        .from("quote_items")
-        .insert(quoteLines);
+      const { error: itemError } =
+        await supabase
+          .from("quote_items")
+          .insert(quoteLines);
 
-    if (itemError) {
-      console.error(itemError);
+      if (itemError) {
+        console.error(itemError);
 
-      alert(itemError.message);
+        alert(itemError.message);
 
-      setSaving(false);
-      return;
+        setSaving(false);
+        return;
+      }
     }
 
     /*
@@ -273,328 +275,424 @@ export default function NewQuotePage() {
       title="New Quote"
       subtitle="Create a customer quotation"
     >
-
-      <div className="grid gap-8 lg:grid-cols-3">
+      <div className="mx-auto max-w-6xl p-4 sm:p-6">
 
         {/* ===================================================== */}
-        {/* LEFT COLUMN */}
+        {/* PAGE HEADER */}
         {/* ===================================================== */}
 
-        <div className="space-y-8 lg:col-span-2">
+        <div className="mb-6">
 
-          {/* CUSTOMER */}
+          <h1 className="text-2xl font-bold text-charcoal-900">
+            New Quote
+          </h1>
 
-          <CustomerSelector
-            value={customer?.id ?? ""}
-            onChange={(selectedCustomer) =>
-              setCustomer(
-                selectedCustomer as
-                  Customer | null
-              )
-            }
-          />
+          <p className="mt-1 text-sm text-charcoal-500">
+            Create a customer quotation
+          </p>
 
-          {/* PRODUCTS */}
+        </div>
 
-          <ProductSelector
-            onSelect={(product) =>
-              addProduct(
-                product as Product
-              )
-            }
-          />
+        <div className="grid gap-8 lg:grid-cols-3">
 
-          {/* QUOTE ITEMS */}
+          {/* =================================================== */}
+          {/* LEFT COLUMN */}
+          {/* =================================================== */}
 
-          <div className="rounded-xl border bg-white p-6 shadow-sm">
+          <div className="space-y-8 lg:col-span-2">
 
-            <div className="mb-6 flex items-center justify-between">
+            {/* ================================================= */}
+            {/* CUSTOMER */}
+            {/* ================================================= */}
 
-              <h2 className="text-xl font-bold">
-                Quote Items
+            <CustomerSelector
+              value={customer?.id ?? ""}
+              onChange={(selectedCustomer) =>
+                setCustomer(
+                  selectedCustomer as
+                    Customer | null
+                )
+              }
+            />
+
+            {/* ================================================= */}
+            {/* QUOTE DETAILS */}
+            {/* ================================================= */}
+
+            <div className="rounded-xl border border-charcoal-100 bg-white p-6 shadow-sm">
+
+              <h2 className="mb-6 text-xl font-bold text-charcoal-900">
+                Quote Details
               </h2>
 
-              {quoteItems.length > 0 && (
-                <span className="text-sm text-gray-500">
-                  {quoteItems.length}{" "}
-                  {quoteItems.length === 1
-                    ? "item"
-                    : "items"}
-                </span>
-              )}
+              <div className="grid gap-5 md:grid-cols-3">
 
-            </div>
+                {/* QUOTE DATE */}
 
-            {quoteItems.length === 0 ? (
+                <div>
+                  <label
+                    htmlFor="quote-date"
+                    className="mb-1 block text-sm font-medium text-charcoal-700"
+                  >
+                    Quote Date
+                  </label>
 
-              <div className="rounded-lg border border-dashed p-10 text-center text-gray-500">
+                  <input
+                    id="quote-date"
+                    type="date"
+                    value={quoteDate}
+                    readOnly
+                    className="w-full rounded-lg border border-charcoal-200 bg-gray-50 px-3 py-2.5 text-sm text-charcoal-700 outline-none"
+                  />
+                </div>
 
-                No products added yet.
+                {/* VALID UNTIL */}
 
-                <p className="mt-2 text-sm">
-                  Select a product above to add
-                  it to the quote.
+                <div>
+                  <label
+                    htmlFor="valid-until"
+                    className="mb-1 block text-sm font-medium text-charcoal-700"
+                  >
+                    Valid Until
+                  </label>
+
+                  <input
+                    id="valid-until"
+                    type="date"
+                    value={validUntil}
+                    readOnly
+                    className="w-full rounded-lg border border-charcoal-200 bg-gray-50 px-3 py-2.5 text-sm text-charcoal-700 outline-none"
+                  />
+                </div>
+
+                {/* STATUS */}
+
+                <div>
+                  <label
+                    htmlFor="status"
+                    className="mb-1 block text-sm font-medium text-charcoal-700"
+                  >
+                    Status
+                  </label>
+
+                  <input
+                    id="status"
+                    type="text"
+                    value="Draft"
+                    readOnly
+                    className="w-full rounded-lg border border-charcoal-200 bg-gray-50 px-3 py-2.5 text-sm text-charcoal-700 outline-none"
+                  />
+                </div>
+
+              </div>
+
+              {/* ================================================= */}
+              {/* SITE SECTION */}
+              {/* ================================================= */}
+
+              <div className="mt-5">
+
+                <label
+                  htmlFor="site"
+                  className="mb-1 block text-sm font-medium text-charcoal-700"
+                >
+                  Site Section
+                </label>
+
+                <input
+                  id="site"
+                  type="text"
+                  value={site}
+                  onChange={(event) =>
+                    setSite(event.target.value)
+                  }
+                  placeholder="Enter site section"
+                  className="w-full rounded-lg border border-charcoal-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-charcoal-500"
+                />
+
+                <p className="mt-1 text-xs text-charcoal-400">
+                  Enter the site or section this quote relates to.
                 </p>
 
               </div>
 
-            ) : (
+            </div>
 
-              <div className="space-y-6">
+            {/* ================================================= */}
+            {/* PRODUCTS */}
+            {/* ================================================= */}
 
-                {quoteItems.map(
-                  (item, index) => (
+            <ProductSelector
+              onSelect={(product) =>
+                addProduct(
+                  product as Product
+                )
+              }
+            />
 
-                    <QuoteLine
-                      key={index}
-                      line={item}
-                      index={index}
-                      onChange={updateItem}
-                      onRemove={removeItem}
-                    />
+            {/* ================================================= */}
+            {/* QUOTE ITEMS */}
+            {/* ================================================= */}
 
-                  )
+            <div className="rounded-xl border border-charcoal-100 bg-white p-6 shadow-sm">
+
+              <div className="mb-6 flex items-center justify-between">
+
+                <h2 className="text-xl font-bold text-charcoal-900">
+                  Quote Items
+                </h2>
+
+                {quoteItems.length > 0 && (
+                  <span className="text-sm text-charcoal-500">
+                    {quoteItems.length}{" "}
+                    {quoteItems.length === 1
+                      ? "item"
+                      : "items"}
+                  </span>
                 )}
 
               </div>
 
-            )}
+              {quoteItems.length === 0 ? (
 
-          </div>
+                <div className="rounded-lg border border-dashed border-charcoal-200 p-10 text-center text-charcoal-500">
 
-          {/* NOTES */}
+                  No products added yet.
 
-          <div className="rounded-xl border bg-white p-6 shadow-sm">
+                  <p className="mt-2 text-sm">
+                    Select a product above to add
+                    it to the quote.
+                  </p>
 
-            <h2 className="mb-4 text-xl font-bold">
-              Notes
-            </h2>
-
-            <textarea
-              rows={5}
-              value={notes}
-              onChange={(e) =>
-                setNotes(
-                  e.target.value
-                )
-              }
-              placeholder="Notes for the customer..."
-              className="w-full rounded-lg border px-4 py-3 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-            />
-
-          </div>
-
-        </div>
-
-        {/* ===================================================== */}
-        {/* RIGHT COLUMN */}
-        {/* ===================================================== */}
-
-        <div>
-
-          <div className="sticky top-6 rounded-xl border bg-white p-6 shadow-sm">
-
-            <h2 className="mb-6 text-xl font-bold">
-              Quote Summary
-            </h2>
-
-            <div className="space-y-5">
-
-              {/* QUOTE DATE */}
-
-              <div>
-
-                <label className="text-sm text-gray-500">
-                  Quote Date
-                </label>
-
-                <div className="mt-1 rounded-lg border bg-gray-50 px-4 py-3">
-                  {quoteDate}
                 </div>
 
-              </div>
+              ) : (
 
-              {/* VALID UNTIL */}
+                <div className="space-y-6">
 
-              <div>
+                  {quoteItems.map(
+                    (item, index) => (
 
-                <label className="text-sm text-gray-500">
-                  Valid Until
-                </label>
+                      <QuoteLine
+                        key={index}
+                        line={item}
+                        index={index}
+                        onChange={updateItem}
+                        onRemove={removeItem}
+                      />
 
-                <div className="mt-1 rounded-lg border bg-gray-50 px-4 py-3">
-                  {validUntil}
-                </div>
-
-              </div>
-
-              {/* CUSTOMER */}
-
-              {customer && (
-
-                <div className="rounded-lg bg-blue-50 p-4">
-
-                  <div className="font-semibold">
-                    {customer.company_name}
-                  </div>
-
-                  {customer.contact_person && (
-                    <div className="text-sm text-gray-600">
-                      {customer.contact_person}
-                    </div>
-                  )}
-
-                  {customer.phone && (
-                    <div className="text-sm text-gray-600">
-                      {customer.phone}
-                    </div>
-                  )}
-
-                  {customer.email && (
-                    <div className="text-sm text-gray-600">
-                      {customer.email}
-                    </div>
+                    )
                   )}
 
                 </div>
 
               )}
 
-              <hr />
+            </div>
 
-              {/* ================================================= */}
-              {/* VAT CONTROL */}
-              {/* ================================================= */}
+            {/* ================================================= */}
+            {/* NOTES */}
+            {/* ================================================= */}
 
-              <div className="rounded-xl border bg-gray-50 p-4">
+            <div className="rounded-xl border border-charcoal-100 bg-white p-6 shadow-sm">
 
-                <div className="flex items-center justify-between">
+              <h2 className="mb-4 text-xl font-bold text-charcoal-900">
+                Notes
+              </h2>
 
-                  <div>
+              <textarea
+                rows={5}
+                value={notes}
+                onChange={(e) =>
+                  setNotes(
+                    e.target.value
+                  )
+                }
+                placeholder="Notes for the customer..."
+                className="w-full rounded-lg border border-charcoal-200 px-4 py-3 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              />
 
-                    <p className="font-semibold text-gray-900">
-                      VAT
+            </div>
+
+          </div>
+
+          {/* =================================================== */}
+          {/* RIGHT COLUMN */}
+          {/* =================================================== */}
+
+          <div>
+
+            <div className="sticky top-6 rounded-xl border border-charcoal-100 bg-white p-6 shadow-sm">
+
+              <h2 className="mb-6 text-xl font-bold text-charcoal-900">
+                Quote Summary
+              </h2>
+
+              <div className="space-y-5">
+
+                {/* ================================================= */}
+                {/* CUSTOMER */}
+                {/* ================================================= */}
+
+                {customer && (
+
+                  <div className="rounded-lg bg-blue-50 p-4">
+
+                    <div className="font-semibold text-charcoal-900">
+                      {customer.company_name}
+                    </div>
+
+                    {customer.contact_person && (
+                      <div className="text-sm text-gray-600">
+                        {customer.contact_person}
+                      </div>
+                    )}
+
+                    {customer.phone && (
+                      <div className="text-sm text-gray-600">
+                        {customer.phone}
+                      </div>
+                    )}
+
+                    {customer.email && (
+                      <div className="text-sm text-gray-600">
+                        {customer.email}
+                      </div>
+                    )}
+
+                  </div>
+
+                )}
+
+                {/* ================================================= */}
+                {/* SITE */}
+                {/* ================================================= */}
+
+                {site.trim() && (
+
+                  <div className="rounded-lg border border-charcoal-100 bg-gray-50 p-4">
+
+                    <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                      Site Section
                     </p>
 
-                    <p className="text-xs text-gray-500">
-                      Add VAT to this quotation
+                    <p className="mt-1 font-medium text-charcoal-900">
+                      {site}
                     </p>
 
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setVatEnabled(
-                        !vatEnabled
-                      )
-                    }
-                    aria-pressed={vatEnabled}
-                    className={`relative h-7 w-12 rounded-full transition ${
-                      vatEnabled
-                        ? "bg-blue-600"
-                        : "bg-gray-300"
-                    }`}
-                  >
+                )}
 
-                    <span
-                      className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition ${
-                        vatEnabled
-                          ? "left-6"
-                          : "left-1"
-                      }`}
-                    />
+                <hr />
 
-                  </button>
+                {/* ================================================= */}
+                {/* VAT CONTROL */}
+                {/* ================================================= */}
 
-                </div>
+                <div className="rounded-xl border bg-gray-50 p-4">
 
-                {vatEnabled && (
+                  <div className="flex items-center justify-between">
 
-                  <div className="mt-4">
+                    <div>
 
-                    <label className="mb-2 block text-sm font-medium text-gray-700">
-                      VAT Rate
-                    </label>
+                      <p className="font-semibold text-gray-900">
+                        VAT
+                      </p>
 
-                    <div className="relative">
-
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        step="0.01"
-                        value={vatRate}
-                        onChange={(e) =>
-                          setVatRate(
-                            Number(
-                              e.target.value
-                            )
-                          )
-                        }
-                        className="w-full rounded-lg border bg-white px-4 py-3 pr-10 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                      />
-
-                      <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500">
-                        %
-                      </span>
+                      <p className="text-xs text-gray-500">
+                        Add VAT to this quotation
+                      </p>
 
                     </div>
 
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setVatEnabled(
+                          !vatEnabled
+                        )
+                      }
+                      aria-pressed={vatEnabled}
+                      className={`relative h-7 w-12 rounded-full transition ${
+                        vatEnabled
+                          ? "bg-blue-600"
+                          : "bg-gray-300"
+                      }`}
+                    >
+
+                      <span
+                        className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition ${
+                          vatEnabled
+                            ? "left-6"
+                            : "left-1"
+                        }`}
+                      />
+
+                    </button>
+
                   </div>
 
-                )}
+                  {vatEnabled && (
 
-                {!vatEnabled && (
+                    <div className="mt-4">
 
-                  <p className="mt-3 text-xs text-gray-500">
-                    VAT is currently hidden
-                    from this quotation.
-                  </p>
+                      <label className="mb-2 block text-sm font-medium text-gray-700">
+                        VAT Rate
+                      </label>
 
-                )}
+                      <div className="relative">
 
-              </div>
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="0.01"
+                          value={vatRate}
+                          onChange={(e) =>
+                            setVatRate(
+                              Number(
+                                e.target.value
+                              )
+                            )
+                          }
+                          className="w-full rounded-lg border bg-white px-4 py-3 pr-10 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                        />
 
-              {/* ================================================= */}
-              {/* SUBTOTAL */}
-              {/* ================================================= */}
+                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500">
+                          %
+                        </span>
 
-              <div className="flex justify-between text-lg">
+                      </div>
 
-                <span className="text-gray-600">
-                  Subtotal
-                </span>
+                    </div>
 
-                <span className="font-semibold">
-                  R{" "}
-                  {subtotal.toLocaleString(
-                    "en-ZA",
-                    {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    }
                   )}
-                </span>
 
-              </div>
+                  {!vatEnabled && (
 
-              {/* ================================================= */}
-              {/* VAT AMOUNT */}
-              {/* ================================================= */}
+                    <p className="mt-3 text-xs text-gray-500">
+                      VAT is currently hidden
+                      from this quotation.
+                    </p>
 
-              {vatEnabled && (
+                  )}
+
+                </div>
+
+                {/* ================================================= */}
+                {/* SUBTOTAL */}
+                {/* ================================================= */}
 
                 <div className="flex justify-between text-lg">
 
                   <span className="text-gray-600">
-                    VAT{" "}
-                    {Number(vatRate).toFixed(2)}%
+                    Subtotal
                   </span>
 
                   <span className="font-semibold">
                     R{" "}
-                    {vatAmount.toLocaleString(
+                    {subtotal.toLocaleString(
                       "en-ZA",
                       {
                         minimumFractionDigits: 2,
@@ -605,49 +703,89 @@ export default function NewQuotePage() {
 
                 </div>
 
-              )}
+                {/* ================================================= */}
+                {/* VAT AMOUNT */}
+                {/* ================================================= */}
 
-              {/* ================================================= */}
-              {/* TOTAL */}
-              {/* ================================================= */}
+                {vatEnabled && (
 
-              <div className="border-t pt-4">
+                  <div className="flex justify-between text-lg">
 
-                <div className="flex justify-between text-2xl font-bold">
+                    <span className="text-gray-600">
+                      VAT{" "}
+                      {Number(vatRate).toFixed(2)}%
+                    </span>
 
-                  <span>
-                    Total
-                  </span>
+                    <span className="font-semibold">
+                      R{" "}
+                      {vatAmount.toLocaleString(
+                        "en-ZA",
+                        {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        }
+                      )}
+                    </span>
 
-                  <span className="text-blue-700">
-                    R{" "}
-                    {total.toLocaleString(
-                      "en-ZA",
-                      {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      }
-                    )}
-                  </span>
+                  </div>
+
+                )}
+
+                {/* ================================================= */}
+                {/* TOTAL */}
+                {/* ================================================= */}
+
+                <div className="border-t pt-4">
+
+                  <div className="flex justify-between text-2xl font-bold">
+
+                    <span>
+                      Total
+                    </span>
+
+                    <span className="text-blue-700">
+                      R{" "}
+                      {total.toLocaleString(
+                        "en-ZA",
+                        {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        }
+                      )}
+                    </span>
+
+                  </div>
 
                 </div>
+
+                {/* ================================================= */}
+                {/* CREATE BUTTON */}
+                {/* ================================================= */}
+
+                <button
+                  type="button"
+                  onClick={saveQuote}
+                  disabled={saving}
+                  className="w-full rounded-lg bg-blue-600 py-3 font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {saving
+                    ? "Creating Quote..."
+                    : "Create Quote"}
+                </button>
+
+                {/* CANCEL */}
+                <button
+                  type="button"
+                  onClick={() =>
+                    router.push("/quotes")
+                  }
+                  disabled={saving}
+                  className="w-full rounded-lg border border-charcoal-200 bg-white py-3 font-semibold text-charcoal-700 transition hover:bg-charcoal-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Cancel
+                </button>
 
               </div>
-
-              {/* ================================================= */}
-              {/* CREATE BUTTON */}
-              {/* ================================================= */}
-
-              <button
-                type="button"
-                onClick={saveQuote}
-                disabled={saving}
-                className="w-full rounded-lg bg-blue-600 py-3 font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {saving
-                  ? "Creating Quote..."
-                  : "Create Quote"}
-              </button>
 
             </div>
 
@@ -656,7 +794,6 @@ export default function NewQuotePage() {
         </div>
 
       </div>
-
     </DashboardShell>
   );
 }
