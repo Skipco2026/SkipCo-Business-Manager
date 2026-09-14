@@ -47,8 +47,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
     useState(payrollSectionActive);
 
   /*
-   * Automatically open the Employees menu when the user
-   * navigates to any Employees page.
+   * Automatically open Employees when on an Employees page.
    */
 
   useEffect(() => {
@@ -120,12 +119,15 @@ export function Sidebar({ open, onClose }: SidebarProps) {
    * 7 = Contractors
    * 8 = Settings
    *
-   * Jobs is added manually because it already exists
-   * at /jobs.
+   * Jobs is added manually because it exists at /jobs.
    */
 
   // Business
-  const businessItems = mainNavItems.slice(0, 1);
+  // Dashboard + Customers
+  const businessItems = [
+    mainNavItems[0],
+    mainNavItems[1],
+  ];
 
   // Sales
   const salesItems = [
@@ -135,19 +137,6 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       href: "/jobs",
       icon: Briefcase,
     },
-  ];
-
-  /*
-   * Operations
-   *
-   * Employees is intentionally NOT included here because
-   * we render the expandable Employees navigation separately.
-   */
-
-  const operationsItems = [
-    mainNavItems[1],
-    mainNavItems[7],
-    mainNavItems[8],
   ];
 
   /*
@@ -247,7 +236,9 @@ export function Sidebar({ open, onClose }: SidebarProps) {
 
           <button
             type="button"
-            onClick={() => setEmployeesOpen((current) => !current)}
+            onClick={() =>
+              setEmployeesOpen((current) => !current)
+            }
             className={cn(
               "group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
               employeeSectionActive
@@ -373,8 +364,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
                     <ChevronDown
                       className={cn(
                         "h-3.5 w-3.5 transition-transform duration-200",
-                        payrollOpen &&
-                          "rotate-180"
+                        payrollOpen && "rotate-180"
                       )}
                     />
                   </button>
@@ -417,9 +407,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
                           >
                             <DollarSign className="h-3.5 w-3.5 shrink-0" />
 
-                            <span>
-                              Payroll
-                            </span>
+                            <span>Payroll</span>
                           </Link>
 
                           <Link
@@ -436,9 +424,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
                           >
                             <FileText className="h-3.5 w-3.5 shrink-0" />
 
-                            <span>
-                              Payslips
-                            </span>
+                            <span>Payslips</span>
                           </Link>
                         </div>
                       </motion.div>
