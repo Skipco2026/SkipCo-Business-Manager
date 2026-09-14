@@ -630,11 +630,11 @@ export default function JobsPage() {
   ======================================================= */
 
   function openCertificate(
-    job: Job
-  ) {
-    window.location.href =
-      `/dashboard/jobs/${job.id}/disposal-certificate`;
-  }
+  job: Job
+) {
+  window.location.href =
+    `/jobs/${job.id}/certificate`;
+}
 
   /* =======================================================
      DELETE JOB
