@@ -16,9 +16,14 @@ import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { createClient } from "@/lib/supabase/client";
 
+/* =========================================================
+   TYPES
+========================================================= */
+
 interface Contractor {
   id: string;
-  contractor_name: string;
+  company_name: string | null;
+  trading_name: string | null;
   contact_person: string | null;
   phone: string | null;
   email: string | null;
@@ -32,8 +37,13 @@ interface Contractor {
   updated_at: string;
 }
 
+/* =========================================================
+   FORM
+========================================================= */
+
 const emptyForm = {
-  contractor_name: "",
+  company_name: "",
+  trading_name: "",
   contact_person: "",
   phone: "",
   email: "",
@@ -44,6 +54,10 @@ const emptyForm = {
   status: "Active" as "Active" | "Inactive",
   notes: "",
 };
+
+/* =========================================================
+   PAGE
+========================================================= */
 
 export default function ContractorsPage() {
   const supabase = createClient();
@@ -56,20 +70,26 @@ export default function ContractorsPage() {
   const [saving, setSaving] = useState(false);
 
   const [showForm, setShowForm] = useState(false);
+
   const [editingContractor, setEditingContractor] =
     useState<Contractor | null>(null);
 
   const [form, setForm] = useState(emptyForm);
 
   const [searchTerm, setSearchTerm] = useState("");
+
   const [statusFilter, setStatusFilter] =
     useState<"All" | "Active" | "Inactive">("All");
 
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
+  /* =========================================================
+     LOAD CONTRACTORS
+  ========================================================= */
+
   useEffect(() => {
-    loadContractors();
+    void loadContractors();
   }, []);
 
   async function loadContractors() {
@@ -80,7 +100,7 @@ export default function ContractorsPage() {
       const { data, error } = await supabase
         .from("contractors")
         .select("*")
-        .order("contractor_name", {
+        .order("company_name", {
           ascending: true,
         });
 
@@ -107,6 +127,10 @@ export default function ContractorsPage() {
     }
   }
 
+  /* =========================================================
+     FORM HELPERS
+  ========================================================= */
+
   function updateField(
     field: keyof typeof emptyForm,
     value: string
@@ -131,22 +155,38 @@ export default function ContractorsPage() {
     setEditingContractor(contractor);
 
     setForm({
-      contractor_name:
-        contractor.contractor_name ?? "",
+      company_name:
+        contractor.company_name ?? "",
+
+      trading_name:
+        contractor.trading_name ?? "",
+
       contact_person:
         contractor.contact_person ?? "",
-      phone: contractor.phone ?? "",
-      email: contractor.email ?? "",
-      address: contractor.address ?? "",
+
+      phone:
+        contractor.phone ?? "",
+
+      email:
+        contractor.email ?? "",
+
+      address:
+        contractor.address ?? "",
+
       contractor_type:
         contractor.contractor_type ?? "",
+
       registration_number:
         contractor.registration_number ?? "",
+
       payment_terms:
         contractor.payment_terms ?? "",
+
       status:
         contractor.status ?? "Active",
-      notes: contractor.notes ?? "",
+
+      notes:
+        contractor.notes ?? "",
     });
 
     setError("");
@@ -164,22 +204,30 @@ export default function ContractorsPage() {
     setForm(emptyForm);
   }
 
+  /* =========================================================
+     SAVE CONTRACTOR
+  ========================================================= */
+
   async function saveContractor() {
     setError("");
     setSuccess("");
 
-    if (!form.contractor_name.trim()) {
+    if (!form.company_name.trim()) {
       setError(
-        "Please enter the contractor name."
+        "Please enter the contractor/company name."
       );
+
       return;
     }
 
     setSaving(true);
 
     const contractorData = {
-      contractor_name:
-        form.contractor_name.trim(),
+      company_name:
+        form.company_name.trim(),
+
+      trading_name:
+        form.trading_name.trim() || null,
 
       contact_person:
         form.contact_person.trim() || null,
@@ -214,7 +262,10 @@ export default function ContractorsPage() {
         const { error } = await supabase
           .from("contractors")
           .update(contractorData)
-          .eq("id", editingContractor.id);
+          .eq(
+            "id",
+            editingContractor.id
+          );
 
         if (error) {
           throw error;
@@ -258,12 +309,21 @@ export default function ContractorsPage() {
     }
   }
 
+  /* =========================================================
+     DELETE CONTRACTOR
+  ========================================================= */
+
   async function deleteContractor(
     contractor: Contractor
   ) {
+    const name =
+      contractor.company_name ||
+      contractor.trading_name ||
+      "this contractor";
+
     const confirmed =
       window.confirm(
-        `Are you sure you want to delete ${contractor.contractor_name}?`
+        `Are you sure you want to delete ${name}?`
       );
 
     if (!confirmed) {
@@ -292,11 +352,15 @@ export default function ContractorsPage() {
     }
 
     setSuccess(
-      `${contractor.contractor_name} deleted successfully.`
+      `${name} deleted successfully.`
     );
 
     await loadContractors();
   }
+
+  /* =========================================================
+     FILTERING
+  ========================================================= */
 
   const filteredContractors = useMemo(() => {
     const search =
@@ -304,33 +368,51 @@ export default function ContractorsPage() {
 
     return contractors.filter(
       (contractor) => {
+        const companyName =
+          contractor.company_name
+            ?.toLowerCase() ?? "";
+
+        const tradingName =
+          contractor.trading_name
+            ?.toLowerCase() ?? "";
+
+        const contactPerson =
+          contractor.contact_person
+            ?.toLowerCase() ?? "";
+
+        const phone =
+          contractor.phone
+            ?.toLowerCase() ?? "";
+
+        const email =
+          contractor.email
+            ?.toLowerCase() ?? "";
+
+        const contractorType =
+          contractor.contractor_type
+            ?.toLowerCase() ?? "";
+
+        const registrationNumber =
+          contractor.registration_number
+            ?.toLowerCase() ?? "";
+
         const matchesSearch =
           !search ||
-          contractor.contractor_name
-            .toLowerCase()
-            .includes(search) ||
-          contractor.contact_person
-            ?.toLowerCase()
-            .includes(search) ||
-          contractor.phone
-            ?.toLowerCase()
-            .includes(search) ||
-          contractor.email
-            ?.toLowerCase()
-            .includes(search) ||
-          contractor.contractor_type
-            ?.toLowerCase()
-            .includes(search) ||
-          contractor.registration_number
-            ?.toLowerCase()
-            .includes(search);
+          companyName.includes(search) ||
+          tradingName.includes(search) ||
+          contactPerson.includes(search) ||
+          phone.includes(search) ||
+          email.includes(search) ||
+          contractorType.includes(search) ||
+          registrationNumber.includes(search);
 
         const matchesStatus =
           statusFilter === "All" ||
           contractor.status === statusFilter;
 
         return (
-          matchesSearch && matchesStatus
+          matchesSearch &&
+          matchesStatus
         );
       }
     );
@@ -339,6 +421,10 @@ export default function ContractorsPage() {
     searchTerm,
     statusFilter,
   ]);
+
+  /* =========================================================
+     SUMMARY
+  ========================================================= */
 
   const totalContractors =
     contractors.length;
@@ -354,6 +440,10 @@ export default function ContractorsPage() {
       (contractor) =>
         contractor.status === "Inactive"
     ).length;
+
+  /* =========================================================
+     RENDER
+  ========================================================= */
 
   return (
     <DashboardShell
@@ -372,7 +462,9 @@ export default function ContractorsPage() {
 
       <div className="space-y-6">
 
-        {/* ALERTS */}
+        {/* =================================================
+            ALERTS
+        ================================================= */}
 
         {success && (
           <div className="flex items-center justify-between rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
@@ -383,6 +475,7 @@ export default function ContractorsPage() {
               onClick={() =>
                 setSuccess("")
               }
+              className="rounded p-1 hover:bg-green-100"
             >
               <X className="h-4 w-4" />
             </button>
@@ -395,14 +488,19 @@ export default function ContractorsPage() {
 
             <button
               type="button"
-              onClick={() => setError("")}
+              onClick={() =>
+                setError("")
+              }
+              className="rounded p-1 hover:bg-red-100"
             >
               <X className="h-4 w-4" />
             </button>
           </div>
         )}
 
-        {/* SUMMARY */}
+        {/* =================================================
+            SUMMARY
+        ================================================= */}
 
         <div className="grid gap-4 md:grid-cols-3">
 
@@ -438,7 +536,9 @@ export default function ContractorsPage() {
 
         </div>
 
-        {/* CONTROLS */}
+        {/* =================================================
+            SEARCH + FILTER
+        ================================================= */}
 
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
 
@@ -488,10 +588,13 @@ export default function ContractorsPage() {
 
         </div>
 
-        {/* ADD BUTTON */}
+        {/* =================================================
+            ADD BUTTON
+        ================================================= */}
 
         {!showForm && (
           <div className="flex justify-end">
+
             <button
               type="button"
               onClick={openAddForm}
@@ -500,10 +603,13 @@ export default function ContractorsPage() {
               <Plus className="h-4 w-4" />
               Add Contractor
             </button>
+
           </div>
         )}
 
-        {/* FORM */}
+        {/* =================================================
+            FORM
+        ================================================= */}
 
         {showForm && (
           <div className="rounded-2xl border border-charcoal-100 bg-white p-6 shadow-sm">
@@ -535,7 +641,9 @@ export default function ContractorsPage() {
 
             <div className="space-y-8">
 
-              {/* BUSINESS DETAILS */}
+              {/* =================================================
+                  COMPANY DETAILS
+              ================================================= */}
 
               <section>
 
@@ -547,20 +655,40 @@ export default function ContractorsPage() {
 
                   <div>
                     <label className="mb-2 block text-sm font-medium text-charcoal-700">
-                      Contractor / Company Name *
+                      Company Name *
                     </label>
 
                     <input
                       value={
-                        form.contractor_name
+                        form.company_name
                       }
                       onChange={(event) =>
                         updateField(
-                          "contractor_name",
+                          "company_name",
                           event.target.value
                         )
                       }
-                      placeholder="Company or contractor name"
+                      placeholder="Company name"
+                      className="w-full rounded-lg border border-charcoal-200 px-3 py-2.5 text-sm outline-none focus:border-[#20AEB8] focus:ring-2 focus:ring-[#20AEB8]/10"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-charcoal-700">
+                      Trading Name
+                    </label>
+
+                    <input
+                      value={
+                        form.trading_name
+                      }
+                      onChange={(event) =>
+                        updateField(
+                          "trading_name",
+                          event.target.value
+                        )
+                      }
+                      placeholder="Trading name"
                       className="w-full rounded-lg border border-charcoal-200 px-3 py-2.5 text-sm outline-none focus:border-[#20AEB8] focus:ring-2 focus:ring-[#20AEB8]/10"
                     />
                   </div>
@@ -634,7 +762,9 @@ export default function ContractorsPage() {
 
               </section>
 
-              {/* CONTACT */}
+              {/* =================================================
+                  CONTACT INFORMATION
+              ================================================= */}
 
               <section>
 
@@ -725,7 +855,9 @@ export default function ContractorsPage() {
 
               </section>
 
-              {/* PAYMENT */}
+              {/* =================================================
+                  PAYMENT
+              ================================================= */}
 
               <section>
 
@@ -759,7 +891,9 @@ export default function ContractorsPage() {
 
               </section>
 
-              {/* NOTES */}
+              {/* =================================================
+                  NOTES
+              ================================================= */}
 
               <section>
 
@@ -784,7 +918,9 @@ export default function ContractorsPage() {
 
             </div>
 
-            {/* ACTIONS */}
+            {/* =================================================
+                ACTIONS
+            ================================================= */}
 
             <div className="mt-8 flex justify-end gap-3 border-t border-charcoal-100 pt-6">
 
@@ -811,6 +947,7 @@ export default function ContractorsPage() {
                 ) : (
                   <>
                     <Check className="h-4 w-4" />
+
                     {editingContractor
                       ? "Update Contractor"
                       : "Save Contractor"}
@@ -823,7 +960,9 @@ export default function ContractorsPage() {
           </div>
         )}
 
-        {/* CONTRACTOR LIST */}
+        {/* =================================================
+            CONTRACTOR LIST
+        ================================================= */}
 
         <div className="overflow-hidden rounded-2xl border border-charcoal-100 bg-white shadow-sm">
 
@@ -841,13 +980,16 @@ export default function ContractorsPage() {
 
           {loading ? (
             <div className="flex items-center justify-center px-6 py-16">
+
               <Loader2 className="h-6 w-6 animate-spin text-charcoal-400" />
 
               <span className="ml-3 text-sm text-charcoal-500">
                 Loading contractors...
               </span>
+
             </div>
-          ) : filteredContractors.length === 0 ? (
+          ) : filteredContractors.length ===
+            0 ? (
             <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
 
               <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-charcoal-50">
@@ -916,100 +1058,130 @@ export default function ContractorsPage() {
                 <tbody className="divide-y divide-charcoal-100">
 
                   {filteredContractors.map(
-                    (contractor) => (
-                      <tr
-                        key={contractor.id}
-                        className="transition hover:bg-charcoal-50/50"
-                      >
+                    (contractor) => {
 
-                        <td className="px-6 py-4">
+                      const displayName =
+                        contractor.company_name ||
+                        contractor.trading_name ||
+                        "Unnamed contractor";
 
-                          <div className="text-sm font-semibold text-charcoal-900">
-                            {contractor.contractor_name}
-                          </div>
+                      return (
+                        <tr
+                          key={contractor.id}
+                          className="transition hover:bg-charcoal-50/50"
+                        >
 
-                          {contractor.registration_number && (
-                            <div className="mt-1 text-xs text-charcoal-500">
-                              Ref:{" "}
-                              {
-                                contractor.registration_number
-                              }
+                          {/* CONTRACTOR */}
+
+                          <td className="px-6 py-4">
+
+                            <div className="text-sm font-semibold text-charcoal-900">
+                              {displayName}
                             </div>
-                          )}
 
-                        </td>
+                            {contractor.trading_name &&
+                              contractor.company_name && (
+                                <div className="mt-1 text-xs text-charcoal-500">
+                                  T/A{" "}
+                                  {
+                                    contractor.trading_name
+                                  }
+                                </div>
+                              )}
 
-                        <td className="px-6 py-4 text-sm text-charcoal-700">
-                          {contractor.contact_person ||
-                            "—"}
-                        </td>
-
-                        <td className="px-6 py-4 text-sm text-charcoal-600">
-                          {contractor.contractor_type ||
-                            "—"}
-                        </td>
-
-                        <td className="px-6 py-4 text-sm text-charcoal-600">
-                          {contractor.phone ||
-                            "—"}
-                        </td>
-
-                        <td className="px-6 py-4">
-
-                          <span
-                            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium ${
-                              contractor.status ===
-                              "Active"
-                                ? "bg-green-100 text-green-700"
-                                : "bg-charcoal-100 text-charcoal-600"
-                            }`}
-                          >
-                            {contractor.status ===
-                              "Active" && (
-                              <Check className="h-3.5 w-3.5" />
+                            {contractor.registration_number && (
+                              <div className="mt-1 text-xs text-charcoal-500">
+                                Ref:{" "}
+                                {
+                                  contractor.registration_number
+                                }
+                              </div>
                             )}
 
-                            {contractor.status}
-                          </span>
+                          </td>
 
-                        </td>
+                          {/* CONTACT */}
 
-                        <td className="px-6 py-4">
+                          <td className="px-6 py-4 text-sm text-charcoal-700">
+                            {contractor.contact_person ||
+                              "—"}
+                          </td>
 
-                          <div className="flex justify-end gap-1">
+                          {/* TYPE */}
 
-                            <button
-                              type="button"
-                              onClick={() =>
-                                openEditForm(
-                                  contractor
-                                )
-                              }
-                              className="rounded-lg p-2 text-charcoal-400 hover:bg-charcoal-100 hover:text-charcoal-900"
-                              title="Edit contractor"
+                          <td className="px-6 py-4 text-sm text-charcoal-600">
+                            {contractor.contractor_type ||
+                              "—"}
+                          </td>
+
+                          {/* PHONE */}
+
+                          <td className="px-6 py-4 text-sm text-charcoal-600">
+                            {contractor.phone ||
+                              "—"}
+                          </td>
+
+                          {/* STATUS */}
+
+                          <td className="px-6 py-4">
+
+                            <span
+                              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium ${
+                                contractor.status ===
+                                "Active"
+                                  ? "bg-green-100 text-green-700"
+                                  : "bg-charcoal-100 text-charcoal-600"
+                              }`}
                             >
-                              <Pencil className="h-4 w-4" />
-                            </button>
+                              {contractor.status ===
+                                "Active" && (
+                                <Check className="h-3.5 w-3.5" />
+                              )}
 
-                            <button
-                              type="button"
-                              onClick={() =>
-                                deleteContractor(
-                                  contractor
-                                )
-                              }
-                              className="rounded-lg p-2 text-charcoal-400 hover:bg-red-50 hover:text-red-600"
-                              title="Delete contractor"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
+                              {contractor.status}
+                            </span>
 
-                          </div>
+                          </td>
 
-                        </td>
+                          {/* ACTIONS */}
 
-                      </tr>
-                    )
+                          <td className="px-6 py-4">
+
+                            <div className="flex justify-end gap-1">
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  openEditForm(
+                                    contractor
+                                  )
+                                }
+                                className="rounded-lg p-2 text-charcoal-400 hover:bg-charcoal-100 hover:text-charcoal-900"
+                                title="Edit contractor"
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  deleteContractor(
+                                    contractor
+                                  )
+                                }
+                                className="rounded-lg p-2 text-charcoal-400 hover:bg-red-50 hover:text-red-600"
+                                title="Delete contractor"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+
+                            </div>
+
+                          </td>
+
+                        </tr>
+                      );
+                    }
                   )}
 
                 </tbody>

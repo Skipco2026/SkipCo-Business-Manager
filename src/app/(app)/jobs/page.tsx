@@ -35,8 +35,8 @@ interface Employee {
 
 interface Contractor {
   id: string;
-  company_name: string | null;
-  trading_name: string | null;
+  contractor_name: string;
+  status: "Active" | "Inactive";
 }
 
 interface Invoice {
@@ -174,10 +174,14 @@ export default function JobsPage() {
           ascending: true,
         }),
 
+      /* =====================================================
+         ACTIVE CONTRACTORS ONLY
+      ===================================================== */
       supabase
         .from("contractors")
-        .select("id, company_name, trading_name")
-        .order("company_name", {
+        .select("id, contractor_name, status")
+        .eq("status", "Active")
+        .order("contractor_name", {
           ascending: true,
         }),
 
@@ -238,6 +242,10 @@ export default function JobsPage() {
       console.error(
         "Contractors loading error:",
         contractorsResult.error
+      );
+
+      setError(
+        `Unable to load contractors: ${contractorsResult.error.message}`
       );
     }
 
@@ -407,16 +415,6 @@ export default function JobsPage() {
       return;
     }
 
-    /*
-     * IMPORTANT:
-     *
-     * A job can no longer be created or edited
-     * directly into Completed status.
-     *
-     * Completion must happen through the
-     * disposal certificate workflow.
-     */
-
     if (form.status === "Completed") {
       setError(
         "Jobs cannot be manually set to Completed. The disposal certificate must be signed by both the client and disposal facility."
@@ -458,10 +456,6 @@ export default function JobsPage() {
           ? "Pending"
           : "In Progress",
 
-      /*
-       * A new/edit job is never completed
-       * from this form.
-       */
       completed: false,
       completed_at: null,
 
@@ -573,10 +567,6 @@ export default function JobsPage() {
     const certificate =
       getCertificate(job.id);
 
-    /*
-     * A completed job should have a completed
-     * certificate.
-     */
     if (
       job.completed &&
       isCertificateCompleted(job.id)
@@ -647,20 +637,6 @@ export default function JobsPage() {
   }
 
   /* =======================================================
-     MANUAL COMPLETION REMOVED
-  ======================================================= */
-
-  /*
-   * IMPORTANT:
-   *
-   * We intentionally do NOT have a toggleCompleted()
-   * function anymore.
-   *
-   * Jobs are completed ONLY by the certificate
-   * workflow.
-   */
-
-  /* =======================================================
      DELETE JOB
   ======================================================= */
 
@@ -682,12 +658,6 @@ export default function JobsPage() {
     const certificate =
       getCertificate(job.id);
 
-    /*
-     * Prevent deleting a job that already has
-     * a disposal certificate.
-     *
-     * This protects the audit trail.
-     */
     if (certificate) {
       setError(
         "This job has a disposal certificate and cannot be deleted."
@@ -784,8 +754,7 @@ export default function JobsPage() {
     }
 
     return (
-      contractor.company_name ||
-      contractor.trading_name ||
+      contractor.contractor_name ||
       "Unnamed contractor"
     );
   }
@@ -894,9 +863,7 @@ export default function JobsPage() {
 
       <div className="space-y-6">
 
-        {/* =================================================
-            SUCCESS
-        ================================================= */}
+        {/* SUCCESS */}
 
         {success && (
           <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
@@ -904,9 +871,7 @@ export default function JobsPage() {
           </div>
         )}
 
-        {/* =================================================
-            ERROR
-        ================================================= */}
+        {/* ERROR */}
 
         {error && (
           <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -914,9 +879,7 @@ export default function JobsPage() {
           </div>
         )}
 
-        {/* =================================================
-            SUMMARY
-        ================================================= */}
+        {/* SUMMARY */}
 
         <div className="grid gap-4 md:grid-cols-4">
 
@@ -962,9 +925,7 @@ export default function JobsPage() {
 
         </div>
 
-        {/* =================================================
-            ADD BUTTON
-        ================================================= */}
+        {/* ADD BUTTON */}
 
         {!showForm && (
           <div className="flex justify-end">
@@ -979,9 +940,7 @@ export default function JobsPage() {
           </div>
         )}
 
-        {/* =================================================
-            FORM
-        ================================================= */}
+        {/* FORM */}
 
         {showForm && (
           <div className="rounded-2xl border border-charcoal-100 bg-white p-6 shadow-sm">
@@ -1249,6 +1208,8 @@ export default function JobsPage() {
                     </select>
                   </div>
 
+                  {/* CONTRACTOR */}
+
                   <div>
                     <label className="mb-2 block text-sm font-medium text-charcoal-700">
                       Contractor
@@ -1280,14 +1241,20 @@ export default function JobsPage() {
                               contractor.id
                             }
                           >
-                            {contractor.company_name ||
-                              contractor.trading_name ||
-                              "Unnamed contractor"}
+                            {contractor.contractor_name}
                           </option>
                         )
                       )}
                     </select>
+
+                    {contractors.length === 0 && (
+                      <p className="mt-2 text-xs text-orange-600">
+                        No active contractors are currently available.
+                      </p>
+                    )}
                   </div>
+
+                  {/* INVOICE */}
 
                   <div>
                     <label className="mb-2 block text-sm font-medium text-charcoal-700">
@@ -1454,9 +1421,7 @@ export default function JobsPage() {
           </div>
         )}
 
-        {/* =================================================
-            JOB LIST
-        ================================================= */}
+        {/* JOB LIST */}
 
         <div className="overflow-hidden rounded-2xl border border-charcoal-100 bg-white shadow-sm">
 
