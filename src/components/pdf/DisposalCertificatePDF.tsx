@@ -2,941 +2,792 @@ import {
   Document,
   Image,
   Page,
-  StyleSheet,
   Text,
   View,
+  StyleSheet,
 } from "@react-pdf/renderer";
 
 export interface DisposalCertificatePDFData {
   referenceNumber: string;
   jobNumber: string;
-
   customer: string;
-
   collectedBy: string;
   collectionDate: string;
   collectionLocation: string;
-
+  jobType: string;
+  jobDescription: string;
   wasteType: string;
   quantityVolume: string;
   packaging: string;
   conditionAtReceipt: string;
-
   clientName: string;
   clientSignature: string;
   clientSignedAt: string;
-
   disposalMethod: string;
   disposalFacilityName: string;
   disposalFacilityAddress: string;
   disposalDate: string;
-
   facilityRepresentative: string;
   facilitySignature: string;
   facilitySignedAt: string;
 }
 
-/* =========================================================
-   STYLES
-========================================================= */
+interface DisposalCertificatePDFProps {
+  data: DisposalCertificatePDFData;
+}
 
 const styles = StyleSheet.create({
   page: {
-    width: "210mm",
-    height: "297mm",
-    padding: 0,
-    backgroundColor: "#ffffff",
+    width: "100%",
+    height: "100%",
+    paddingTop: 32,
+    paddingBottom: 44,
+    paddingLeft: 38,
+    paddingRight: 38,
     fontFamily: "Helvetica",
-    color: "#17202a",
+    fontSize: 8,
+    color: "#222222",
+    backgroundColor: "#FFFFFF",
   },
 
-  /* =======================================================
+  /* =====================================================
      HEADER
-  ======================================================= */
+  ===================================================== */
 
   header: {
-    height: 48,
-    backgroundColor: "#111111",
-    paddingHorizontal: 28,
-    paddingVertical: 10,
     flexDirection: "row",
-    alignItems: "center",
     justifyContent: "space-between",
-  },
-
-  headerLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-
-  logoBox: {
-    width: 48,
-    height: 28,
-    marginRight: 10,
-    justifyContent: "center",
-  },
-
-  logo: {
-    maxWidth: 48,
-    maxHeight: 28,
-    objectFit: "contain",
-  },
-
-  companyBlock: {
-    justifyContent: "center",
-  },
-
-  companyName: {
-    fontSize: 9,
-    fontWeight: "bold",
-    color: "#ffffff",
-  },
-
-  companySub: {
-    marginTop: 2,
-    fontSize: 6.5,
-    color: "#bfc7cc",
-  },
-
-  contact: {
-    marginTop: 2,
-    fontSize: 6.5,
-    color: "#bfc7cc",
-  },
-
-  referenceBlock: {
-    alignItems: "flex-end",
-    justifyContent: "center",
-  },
-
-  referenceLabel: {
-    fontSize: 6,
-    color: "#8b979e",
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
-  },
-
-  referenceNumber: {
-    marginTop: 2,
-    fontSize: 9,
-    fontWeight: "bold",
-    color: "#ffffff",
-  },
-
-  turquoiseLine: {
-    height: 4,
-    backgroundColor: "#06b6d4",
-  },
-
-  /* =======================================================
-     MAIN CONTENT
-  ======================================================= */
-
-  content: {
-    paddingHorizontal: 28,
-    paddingTop: 18,
-    paddingBottom: 12,
-    flex: 1,
-  },
-
-  titleArea: {
-    alignItems: "center",
+    alignItems: "flex-start",
     marginBottom: 14,
   },
 
-  titlePill: {
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-    borderRadius: 18,
-    backgroundColor: "#111111",
+  logoArea: {
+    width: "55%",
   },
 
-  title: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#ffffff",
-    letterSpacing: 1.2,
-  },
-
-  subtitle: {
-    marginTop: 7,
-    maxWidth: 470,
-    textAlign: "center",
-    fontSize: 7.5,
-    lineHeight: 11,
-    color: "#66727a",
-  },
-
-  /* =======================================================
-     SECTIONS
-  ======================================================= */
-
-  section: {
-    marginBottom: 11,
-  },
-
-  sectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 5,
-  },
-
-  sectionAccent: {
-    width: 4,
-    height: 16,
-    borderRadius: 2,
-    backgroundColor: "#06b6d4",
-    marginRight: 7,
-  },
-
-  sectionTitle: {
-    fontSize: 9,
-    fontWeight: "bold",
-    color: "#111111",
-    letterSpacing: 0.7,
-  },
-
-  sectionSubtitle: {
-    marginLeft: 11,
+  registeredName: {
     fontSize: 6.5,
-    color: "#8a959c",
-  },
-
-  /* =======================================================
-     INFORMATION GRID
-  ======================================================= */
-
-  infoBox: {
-    borderWidth: 1,
-    borderColor: "#dce2e5",
-    borderRadius: 7,
-    overflow: "hidden",
-  },
-
-  infoRow: {
-    flexDirection: "row",
-    minHeight: 25,
-    borderBottomWidth: 1,
-    borderBottomColor: "#edf0f2",
-  },
-
-  infoRowLast: {
-    flexDirection: "row",
-    minHeight: 25,
-  },
-
-  infoCell: {
-    flex: 1,
-    paddingHorizontal: 9,
-    paddingVertical: 5,
-    justifyContent: "center",
-  },
-
-  infoCellRight: {
-    flex: 1,
-    paddingHorizontal: 9,
-    paddingVertical: 5,
-    justifyContent: "center",
-    borderLeftWidth: 1,
-    borderLeftColor: "#edf0f2",
-  },
-
-  label: {
-    fontSize: 5.8,
-    color: "#8a959c",
-    textTransform: "uppercase",
-    letterSpacing: 0.4,
-    marginBottom: 2,
-  },
-
-  value: {
-    fontSize: 7.5,
-    color: "#202a30",
-    fontWeight: "bold",
-  },
-
-  valueNormal: {
-    fontSize: 7.2,
-    color: "#39454c",
-  },
-
-  /* =======================================================
-     SIGNATURE AREAS
-  ======================================================= */
-
-  signoffGrid: {
-    flexDirection: "row",
-    gap: 10,
-  },
-
-  signoffBox: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: "#dce2e5",
-    borderRadius: 7,
-    padding: 9,
-    minHeight: 88,
-  },
-
-  signoffHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    color: "#666666",
     marginBottom: 5,
   },
 
-  signoffTitle: {
-    fontSize: 7.5,
-    fontWeight: "bold",
-    color: "#111111",
-    textTransform: "uppercase",
-    letterSpacing: 0.4,
-  },
-
-  signedBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    borderRadius: 8,
-    backgroundColor: "#dcfce7",
-  },
-
-  signedBadgeText: {
-    fontSize: 5.5,
-    fontWeight: "bold",
-    color: "#15803d",
-  },
-
-  signatureArea: {
-    height: 43,
-    borderWidth: 1,
-    borderColor: "#edf0f2",
-    borderRadius: 4,
-    backgroundColor: "#fafbfc",
-    justifyContent: "center",
-    alignItems: "center",
-    overflow: "hidden",
-  },
-
-  signature: {
-    width: "92%",
-    height: 39,
+  logo: {
+    width: 175,
+    height: 94,
     objectFit: "contain",
   },
 
-  signatureLine: {
-    position: "absolute",
-    left: 9,
-    right: 9,
-    bottom: 6,
-    height: 0.7,
-    backgroundColor: "#9aa5ab",
+  certificateHeading: {
+    width: "40%",
+    alignItems: "flex-end",
+    paddingTop: 10,
   },
 
-  signName: {
-    marginTop: 5,
-    fontSize: 6.5,
+  certificateTitle: {
+    fontSize: 20,
     fontWeight: "bold",
-    color: "#263238",
+    letterSpacing: 0.8,
+    color: "#222222",
+    marginBottom: 10,
+    textAlign: "right",
   },
 
-  signDate: {
-    marginTop: 2,
-    fontSize: 5.5,
-    color: "#8a959c",
+  referenceRow: {
+    flexDirection: "row",
+    marginBottom: 4,
   },
 
-  /* =======================================================
-     FINAL STATEMENT
-  ======================================================= */
+  referenceLabel: {
+    width: 72,
+    textAlign: "right",
+    color: "#777777",
+    fontSize: 7.5,
+    marginRight: 7,
+  },
 
-  statement: {
-    marginTop: 3,
+  referenceValue: {
+    width: 95,
+    textAlign: "right",
+    fontWeight: "bold",
+    fontSize: 7.5,
+  },
+
+  cyanLine: {
+    height: 3,
+    backgroundColor: "#20AEB8",
+    marginBottom: 16,
+  },
+
+  /* =====================================================
+     INTRODUCTION
+  ===================================================== */
+
+  introduction: {
+    marginBottom: 16,
+  },
+
+  introductionTitle: {
+    fontSize: 9,
+    fontWeight: "bold",
+    color: "#20AEB8",
+    marginBottom: 5,
+    textTransform: "uppercase",
+  },
+
+  introductionText: {
+    fontSize: 8,
+    color: "#555555",
+    lineHeight: 1.35,
+  },
+
+  /* =====================================================
+     SECTIONS
+  ===================================================== */
+
+  section: {
+    marginBottom: 14,
+  },
+
+  sectionHeading: {
+    backgroundColor: "#20AEB8",
+    color: "#FFFFFF",
+    fontSize: 8,
+    fontWeight: "bold",
+    paddingTop: 6,
+    paddingBottom: 6,
+    paddingLeft: 8,
+    paddingRight: 8,
+    textTransform: "uppercase",
+  },
+
+  sectionBody: {
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: "#D9DDE3",
     padding: 9,
-    borderRadius: 7,
-    backgroundColor: "#f0fbfd",
-    borderWidth: 1,
-    borderColor: "#b9edf4",
   },
 
-  statementTitle: {
+  /* =====================================================
+     DETAIL GRID
+  ===================================================== */
+
+  detailRow: {
+    flexDirection: "row",
+    marginBottom: 7,
+  },
+
+  detailRowLast: {
+    flexDirection: "row",
+  },
+
+  detailColumn: {
+    width: "50%",
+    paddingRight: 8,
+  },
+
+  detailColumnRight: {
+    width: "50%",
+    paddingLeft: 8,
+  },
+
+  detailLabel: {
+    fontSize: 6.5,
+    color: "#777777",
+    marginBottom: 2,
+    textTransform: "uppercase",
+  },
+
+  detailValue: {
+    fontSize: 8,
+    fontWeight: "bold",
+    color: "#222222",
+    lineHeight: 1.25,
+  },
+
+  detailValueNormal: {
+    fontSize: 8,
+    color: "#333333",
+    lineHeight: 1.25,
+  },
+
+  /* =====================================================
+     SIGNATURES
+  ===================================================== */
+
+  signatureSection: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 4,
+  },
+
+  signatureBox: {
+    width: "48%",
+    borderWidth: 1,
+    borderColor: "#D9DDE3",
+    minHeight: 92,
+    padding: 8,
+  },
+
+  signatureHeading: {
     fontSize: 7.5,
     fontWeight: "bold",
-    color: "#0e7490",
-    marginBottom: 3,
+    color: "#20AEB8",
+    textTransform: "uppercase",
+    marginBottom: 6,
   },
 
-  statementText: {
-    fontSize: 6.4,
-    lineHeight: 9,
-    color: "#3c5962",
-  },
-
-  /* =======================================================
-     WATERMARK
-  ======================================================= */
-
-  watermark: {
-    position: "absolute",
-    left: 55,
-    right: 55,
-    top: 390,
+  signatureImageContainer: {
+    height: 48,
+    justifyContent: "center",
     alignItems: "center",
-    opacity: 0.035,
+    marginBottom: 5,
   },
 
-  watermarkText: {
-    fontSize: 48,
+  signatureImage: {
+    maxWidth: 180,
+    maxHeight: 45,
+    objectFit: "contain",
+  },
+
+  noSignature: {
+    fontSize: 7,
+    color: "#999999",
+  },
+
+  signatureLine: {
+    borderTopWidth: 1,
+    borderTopColor: "#999999",
+    paddingTop: 4,
+  },
+
+  signatureName: {
+    fontSize: 7,
     fontWeight: "bold",
-    color: "#111111",
-    letterSpacing: 2,
   },
 
-  /* =======================================================
+  signatureDate: {
+    fontSize: 6.5,
+    color: "#777777",
+    marginTop: 2,
+  },
+
+  /* =====================================================
+     FINAL CONFIRMATION
+  ===================================================== */
+
+  confirmation: {
+    borderWidth: 1,
+    borderColor: "#20AEB8",
+    backgroundColor: "#F2FCFD",
+    padding: 10,
+    marginTop: 2,
+  },
+
+  confirmationTitle: {
+    fontSize: 8,
+    fontWeight: "bold",
+    color: "#20AEB8",
+    marginBottom: 4,
+    textTransform: "uppercase",
+  },
+
+  confirmationText: {
+    fontSize: 7.5,
+    color: "#444444",
+    lineHeight: 1.3,
+  },
+
+  /* =====================================================
      FOOTER
-  ======================================================= */
+  ===================================================== */
 
   footer: {
-    height: 28,
-    backgroundColor: "#06b6d4",
-    paddingHorizontal: 28,
+    position: "absolute",
+    bottom: 20,
+    left: 38,
+    right: 38,
+    borderTopWidth: 1,
+    borderTopColor: "#D9DDE3",
+    paddingTop: 7,
     flexDirection: "row",
-    alignItems: "center",
     justifyContent: "space-between",
   },
 
   footerLeft: {
-    fontSize: 6.5,
-    fontWeight: "bold",
-    color: "#ffffff",
+    width: "60%",
   },
 
   footerRight: {
-    fontSize: 6,
-    color: "#e6fbff",
+    width: "40%",
+    alignItems: "flex-end",
+  },
+
+  footerText: {
+    fontSize: 6.5,
+    color: "#777777",
+    marginBottom: 1.5,
+  },
+
+  watermark: {
+    position: "absolute",
+    bottom: 55,
+    left: 0,
+    right: 0,
+    textAlign: "center",
+    fontSize: 5.5,
+    color: "#BBBBBB",
   },
 });
 
-/* =========================================================
+/* =====================================================
    HELPERS
-========================================================= */
+===================================================== */
 
-function display(value: string | null | undefined) {
-  if (!value || !value.trim()) {
-    return "-";
-  }
-
-  return value;
+function displayValue(value: string | null | undefined) {
+  return value?.trim() || "-";
 }
 
-/* =========================================================
-   PDF COMPONENT
-========================================================= */
+/* =====================================================
+   DISPOSAL CERTIFICATE PDF
+===================================================== */
 
 export default function DisposalCertificatePDF({
   data,
-}: {
-  data: DisposalCertificatePDFData;
-}) {
+}: DisposalCertificatePDFProps) {
   return (
-    <Document
-      title={`Certificate of Disposal - ${data.referenceNumber}`}
-      author="Skip Co Solutions"
-      subject="Certificate of Disposal"
-      creator="Skip Co Business Manager"
-    >
-      <Page size="A4" style={styles.page}>
-        {/* =================================================
-            WATERMARK
-        ================================================= */}
-
-        <View style={styles.watermark}>
-          <Text style={styles.watermarkText}>
-            SKIP CO SOLUTIONS
-          </Text>
-        </View>
-
+    <Document>
+      <Page
+        size="A4"
+        orientation="portrait"
+        style={styles.page}
+        wrap
+      >
         {/* =================================================
             HEADER
         ================================================= */}
 
         <View style={styles.header}>
-          <View style={styles.headerLeft}>
-            <View style={styles.logoBox}>
-              {/* 
-                If your logo is stored in /public/skipco-logo.png,
-                this will display it automatically.
-              */}
-              <Image
-                src="/skipco-logo.png"
-                style={styles.logo}
-              />
-            </View>
+          <View style={styles.logoArea}>
+            {/* SMALL LEGAL NAME ABOVE LOGO — SAME AS INVOICE */}
+            <Text style={styles.registeredName}>
+              DDW Consolidate t/a SkipCo Solutions
+            </Text>
 
-            <View style={styles.companyBlock}>
-              <Text style={styles.companyName}>
-                DDW Consolidate Pty (Ltd) t/a SkipCo Solutions
-              </Text>
-
-              <Text style={styles.companySub}>
-                Waste Collection &amp; Disposal Services
-              </Text>
-
-              <Text style={styles.contact}>
-                Phone:  •  Email:
-              </Text>
-            </View>
+            {/* SAME LOGO AS INVOICE */}
+            <Image
+              src="/skipco-logo.jpg"
+              style={styles.logo}
+            />
           </View>
 
-          <View style={styles.referenceBlock}>
-            <Text style={styles.referenceLabel}>
-              Reference Number
+          <View style={styles.certificateHeading}>
+            <Text style={styles.certificateTitle}>
+              CERTIFICATE OF DISPOSAL
             </Text>
 
-            <Text style={styles.referenceNumber}>
-              {display(data.referenceNumber)}
-            </Text>
+            <View style={styles.referenceRow}>
+              <Text style={styles.referenceLabel}>
+                Reference No.
+              </Text>
 
-            <Text style={styles.referenceLabel}>
-              Job {display(data.jobNumber)}
-            </Text>
+              <Text style={styles.referenceValue}>
+                {displayValue(data.referenceNumber)}
+              </Text>
+            </View>
+
+            <View style={styles.referenceRow}>
+              <Text style={styles.referenceLabel}>
+                Job No.
+              </Text>
+
+              <Text style={styles.referenceValue}>
+                {displayValue(data.jobNumber)}
+              </Text>
+            </View>
           </View>
         </View>
 
-        <View style={styles.turquoiseLine} />
+        <View style={styles.cyanLine} />
 
         {/* =================================================
-            MAIN
+            CERTIFICATION STATEMENT
         ================================================= */}
 
-        <View style={styles.content}>
-          {/* TITLE */}
+        <View style={styles.introduction}>
+          <Text style={styles.introductionTitle}>
+            Waste Collection & Disposal Record
+          </Text>
 
-          <View style={styles.titleArea}>
-            <View style={styles.titlePill}>
-              <Text style={styles.title}>
-                CERTIFICATE OF DISPOSAL
-              </Text>
+          <Text style={styles.introductionText}>
+            This certificate confirms that the waste/material described
+            below was collected and received for disposal at the
+            designated disposal facility. The information recorded
+            represents the collection and disposal details confirmed
+            by the relevant parties.
+          </Text>
+        </View>
+
+        {/* =================================================
+            COLLECTION DETAILS
+        ================================================= */}
+
+        <View style={styles.section}>
+          <Text style={styles.sectionHeading}>
+            1. Collection Details
+          </Text>
+
+          <View style={styles.sectionBody}>
+            <View style={styles.detailRow}>
+              <View style={styles.detailColumn}>
+                <Text style={styles.detailLabel}>
+                  Customer
+                </Text>
+
+                <Text style={styles.detailValue}>
+                  {displayValue(data.customer)}
+                </Text>
+              </View>
+
+              <View style={styles.detailColumnRight}>
+                <Text style={styles.detailLabel}>
+                  Collected By
+                </Text>
+
+                <Text style={styles.detailValue}>
+                  {displayValue(data.collectedBy)}
+                </Text>
+              </View>
             </View>
 
-            <Text style={styles.subtitle}>
-              This certificate confirms that the waste described
-              below was collected from the stated location and
-              received by the disposal facility indicated below.
-            </Text>
-          </View>
+            <View style={styles.detailRow}>
+              <View style={styles.detailColumn}>
+                <Text style={styles.detailLabel}>
+                  Collection Date
+                </Text>
 
-          {/* =================================================
-              COLLECTION DETAILS
-          ================================================= */}
+                <Text style={styles.detailValueNormal}>
+                  {displayValue(data.collectionDate)}
+                </Text>
+              </View>
 
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <View style={styles.sectionAccent} />
+              <View style={styles.detailColumnRight}>
+                <Text style={styles.detailLabel}>
+                  Collection Location
+                </Text>
 
-              <Text style={styles.sectionTitle}>
-                COLLECTION DETAILS
-              </Text>
+                <Text style={styles.detailValueNormal}>
+                  {displayValue(data.collectionLocation)}
+                </Text>
+              </View>
             </View>
 
-            <View style={styles.infoBox}>
-              <View style={styles.infoRow}>
-                <View style={styles.infoCell}>
-                  <Text style={styles.label}>
-                    Customer
-                  </Text>
+            <View style={styles.detailRow}>
+              <View style={styles.detailColumn}>
+                <Text style={styles.detailLabel}>
+                  Job Type
+                </Text>
 
-                  <Text style={styles.value}>
-                    {display(data.customer)}
-                  </Text>
-                </View>
-
-                <View style={styles.infoCellRight}>
-                  <Text style={styles.label}>
-                    Job / Reference
-                  </Text>
-
-                  <Text style={styles.value}>
-                    {display(data.jobNumber)}
-                  </Text>
-                </View>
+                <Text style={styles.detailValueNormal}>
+                  {displayValue(data.jobType)}
+                </Text>
               </View>
 
-              <View style={styles.infoRow}>
-                <View style={styles.infoCell}>
-                  <Text style={styles.label}>
-                    Collection Date
-                  </Text>
+              <View style={styles.detailColumnRight}>
+                <Text style={styles.detailLabel}>
+                  Job Description
+                </Text>
 
-                  <Text style={styles.valueNormal}>
-                    {display(data.collectionDate)}
-                  </Text>
-                </View>
+                <Text style={styles.detailValueNormal}>
+                  {displayValue(data.jobDescription)}
+                </Text>
+              </View>
+            </View>
 
-                <View style={styles.infoCellRight}>
-                  <Text style={styles.label}>
-                    Collected By
-                  </Text>
+            <View style={styles.detailRowLast}>
+              <View style={styles.detailColumn}>
+                <Text style={styles.detailLabel}>
+                  Client Name
+                </Text>
 
-                  <Text style={styles.valueNormal}>
-                    {display(data.collectedBy)}
-                  </Text>
-                </View>
+                <Text style={styles.detailValue}>
+                  {displayValue(data.clientName)}
+                </Text>
               </View>
 
-              <View style={styles.infoRow}>
-                <View style={styles.infoCell}>
-                  <Text style={styles.label}>
-                    Collection Location
-                  </Text>
+              <View style={styles.detailColumnRight}>
+                <Text style={styles.detailLabel}>
+                  Client Sign-Off Date
+                </Text>
 
-                  <Text style={styles.valueNormal}>
-                    {display(data.collectionLocation)}
-                  </Text>
-                </View>
-
-                <View style={styles.infoCellRight}>
-                  <Text style={styles.label}>
-                    Waste Type
-                  </Text>
-
-                  <Text style={styles.valueNormal}>
-                    {display(data.wasteType)}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.infoRow}>
-                <View style={styles.infoCell}>
-                  <Text style={styles.label}>
-                    Quantity / Volume
-                  </Text>
-
-                  <Text style={styles.valueNormal}>
-                    {display(data.quantityVolume)}
-                  </Text>
-                </View>
-
-                <View style={styles.infoCellRight}>
-                  <Text style={styles.label}>
-                    Packaging / Container
-                  </Text>
-
-                  <Text style={styles.valueNormal}>
-                    {display(data.packaging)}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.infoRowLast}>
-                <View style={styles.infoCell}>
-                  <Text style={styles.label}>
-                    Condition at Collection
-                  </Text>
-
-                  <Text style={styles.valueNormal}>
-                    {display(data.conditionAtReceipt)}
-                  </Text>
-                </View>
-
-                <View style={styles.infoCellRight}>
-                  <Text style={styles.label}>
-                    Client Representative
-                  </Text>
-
-                  <Text style={styles.valueNormal}>
-                    {display(data.clientName)}
-                  </Text>
-                </View>
+                <Text style={styles.detailValueNormal}>
+                  {displayValue(data.clientSignedAt)}
+                </Text>
               </View>
             </View>
           </View>
+        </View>
 
-          {/* =================================================
-              CLIENT SIGN-OFF
-          ================================================= */}
+        {/* =================================================
+            WASTE DETAILS
+        ================================================= */}
 
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <View style={styles.sectionAccent} />
+        <View style={styles.section}>
+          <Text style={styles.sectionHeading}>
+            Waste Details
+          </Text>
 
-              <Text style={styles.sectionTitle}>
-                CLIENT COLLECTION SIGN-OFF
-              </Text>
+          <View style={styles.sectionBody}>
+            <View style={styles.detailRow}>
+              <View style={styles.detailColumn}>
+                <Text style={styles.detailLabel}>
+                  Waste Type
+                </Text>
+
+                <Text style={styles.detailValue}>
+                  {displayValue(data.wasteType)}
+                </Text>
+              </View>
+
+              <View style={styles.detailColumnRight}>
+                <Text style={styles.detailLabel}>
+                  Quantity / Volume
+                </Text>
+
+                <Text style={styles.detailValue}>
+                  {displayValue(data.quantityVolume)}
+                </Text>
+              </View>
             </View>
 
-            <View style={styles.signoffGrid}>
-              <View style={styles.signoffBox}>
-                <View style={styles.signoffHeader}>
-                  <Text style={styles.signoffTitle}>
-                    Client Confirmation
-                  </Text>
+            <View style={styles.detailRow}>
+              <View style={styles.detailColumn}>
+                <Text style={styles.detailLabel}>
+                  Packaging
+                </Text>
 
-                  <View style={styles.signedBadge}>
-                    <Text style={styles.signedBadgeText}>
-                      SIGNED
-                    </Text>
-                  </View>
-                </View>
+                <Text style={styles.detailValueNormal}>
+                  {displayValue(data.packaging)}
+                </Text>
+              </View>
 
-                <View style={styles.signatureArea}>
+              <View style={styles.detailColumnRight}>
+                <Text style={styles.detailLabel}>
+                  Condition at Receipt
+                </Text>
+
+                <Text style={styles.detailValueNormal}>
+                  {displayValue(data.conditionAtReceipt)}
+                </Text>
+              </View>
+            </View>
+          </View>
+        </View>
+
+        {/* =================================================
+            CLIENT SIGN-OFF
+        ================================================= */}
+
+        <View style={styles.section}>
+          <Text style={styles.sectionHeading}>
+            Client Collection Sign-Off
+          </Text>
+
+          <View style={styles.sectionBody}>
+            <View style={styles.signatureSection}>
+              <View style={styles.signatureBox}>
+                <Text style={styles.signatureHeading}>
+                  Client Signature
+                </Text>
+
+                <View style={styles.signatureImageContainer}>
                   {data.clientSignature ? (
                     <Image
                       src={data.clientSignature}
-                      style={styles.signature}
+                      style={styles.signatureImage}
                     />
                   ) : (
-                    <Text style={styles.valueNormal}>
-                      Signature not available
+                    <Text style={styles.noSignature}>
+                      No signature recorded
                     </Text>
                   )}
-
-                  <View style={styles.signatureLine} />
                 </View>
 
-                <Text style={styles.signName}>
-                  {display(data.clientName)}
-                </Text>
+                <View style={styles.signatureLine}>
+                  <Text style={styles.signatureName}>
+                    {displayValue(data.clientName)}
+                  </Text>
 
-                <Text style={styles.signDate}>
-                  Signed: {display(data.clientSignedAt)}
-                </Text>
+                  <Text style={styles.signatureDate}>
+                    Signed: {displayValue(data.clientSignedAt)}
+                  </Text>
+                </View>
               </View>
 
-              <View style={styles.signoffBox}>
-                <Text style={styles.signoffTitle}>
+              <View style={styles.signatureBox}>
+                <Text style={styles.signatureHeading}>
                   Collection Confirmation
                 </Text>
 
-                <Text
-                  style={{
-                    marginTop: 10,
-                    fontSize: 6.6,
-                    lineHeight: 9,
-                    color: "#59666d",
-                  }}
-                >
-                  The client confirms that the waste described
-                  on this certificate was collected from the
-                  stated collection location.
-                </Text>
-
-                <Text
-                  style={{
-                    marginTop: 9,
-                    fontSize: 6.2,
-                    color: "#8a959c",
-                  }}
-                >
-                  Collected by:
-                </Text>
-
-                <Text
-                  style={{
-                    marginTop: 2,
-                    fontSize: 7,
-                    fontWeight: "bold",
-                    color: "#263238",
-                  }}
-                >
-                  {display(data.collectedBy)}
+                <Text style={styles.confirmationText}>
+                  I confirm that the waste/material described on
+                  this certificate was collected from the stated
+                  collection location.
                 </Text>
               </View>
             </View>
           </View>
+        </View>
 
-          {/* =================================================
-              DISPOSAL FACILITY
-          ================================================= */}
+        {/* =================================================
+            DISPOSAL FACILITY
+        ================================================= */}
 
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <View style={styles.sectionAccent} />
+        <View style={styles.section}>
+          <Text style={styles.sectionHeading}>
+            2. Disposal Facility
+          </Text>
 
-              <Text style={styles.sectionTitle}>
-                DISPOSAL FACILITY
-              </Text>
+          <View style={styles.sectionBody}>
+            <View style={styles.detailRow}>
+              <View style={styles.detailColumn}>
+                <Text style={styles.detailLabel}>
+                  Disposal Facility
+                </Text>
+
+                <Text style={styles.detailValue}>
+                  {displayValue(data.disposalFacilityName)}
+                </Text>
+              </View>
+
+              <View style={styles.detailColumnRight}>
+                <Text style={styles.detailLabel}>
+                  Disposal Date
+                </Text>
+
+                <Text style={styles.detailValue}>
+                  {displayValue(data.disposalDate)}
+                </Text>
+              </View>
             </View>
 
-            <View style={styles.infoBox}>
-              <View style={styles.infoRow}>
-                <View style={styles.infoCell}>
-                  <Text style={styles.label}>
-                    Disposal Facility
-                  </Text>
+            <View style={styles.detailRow}>
+              <View style={styles.detailColumn}>
+                <Text style={styles.detailLabel}>
+                  Facility Address
+                </Text>
 
-                  <Text style={styles.value}>
-                    {display(data.disposalFacilityName)}
-                  </Text>
-                </View>
-
-                <View style={styles.infoCellRight}>
-                  <Text style={styles.label}>
-                    Disposal Method
-                  </Text>
-
-                  <Text style={styles.valueNormal}>
-                    {display(data.disposalMethod)}
-                  </Text>
-                </View>
+                <Text style={styles.detailValueNormal}>
+                  {displayValue(data.disposalFacilityAddress)}
+                </Text>
               </View>
 
-              <View style={styles.infoRow}>
-                <View style={styles.infoCell}>
-                  <Text style={styles.label}>
-                    Facility Address
-                  </Text>
+              <View style={styles.detailColumnRight}>
+                <Text style={styles.detailLabel}>
+                  Disposal Method
+                </Text>
 
-                  <Text style={styles.valueNormal}>
-                    {display(data.disposalFacilityAddress)}
-                  </Text>
-                </View>
+                <Text style={styles.detailValueNormal}>
+                  {displayValue(data.disposalMethod)}
+                </Text>
+              </View>
+            </View>
 
-                <View style={styles.infoCellRight}>
-                  <Text style={styles.label}>
-                    Disposal Date
-                  </Text>
+            <View style={styles.detailRowLast}>
+              <View style={styles.detailColumn}>
+                <Text style={styles.detailLabel}>
+                  Facility Representative
+                </Text>
 
-                  <Text style={styles.valueNormal}>
-                    {display(data.disposalDate)}
-                  </Text>
-                </View>
+                <Text style={styles.detailValue}>
+                  {displayValue(data.facilityRepresentative)}
+                </Text>
               </View>
 
-              <View style={styles.infoRowLast}>
-                <View style={styles.infoCell}>
-                  <Text style={styles.label}>
-                    Facility Representative
-                  </Text>
+              <View style={styles.detailColumnRight}>
+                <Text style={styles.detailLabel}>
+                  Facility Sign-Off Date
+                </Text>
 
-                  <Text style={styles.valueNormal}>
-                    {display(data.facilityRepresentative)}
-                  </Text>
-                </View>
-
-                <View style={styles.infoCellRight}>
-                  <Text style={styles.label}>
-                    Waste Received
-                  </Text>
-
-                  <Text style={styles.valueNormal}>
-                    {display(data.quantityVolume)}
-                  </Text>
-                </View>
+                <Text style={styles.detailValueNormal}>
+                  {displayValue(data.facilitySignedAt)}
+                </Text>
               </View>
             </View>
           </View>
+        </View>
 
-          {/* =================================================
-              FACILITY SIGN-OFF
-          ================================================= */}
+        {/* =================================================
+            FACILITY SIGN-OFF
+        ================================================= */}
 
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <View style={styles.sectionAccent} />
+        <View style={styles.section}>
+          <Text style={styles.sectionHeading}>
+            Disposal Facility Sign-Off
+          </Text>
 
-              <Text style={styles.sectionTitle}>
-                DISPOSAL FACILITY SIGN-OFF
-              </Text>
-            </View>
+          <View style={styles.sectionBody}>
+            <View style={styles.signatureSection}>
+              <View style={styles.signatureBox}>
+                <Text style={styles.signatureHeading}>
+                  Facility Representative Signature
+                </Text>
 
-            <View style={styles.signoffGrid}>
-              <View style={styles.signoffBox}>
-                <View style={styles.signoffHeader}>
-                  <Text style={styles.signoffTitle}>
-                    Facility Confirmation
-                  </Text>
-
-                  <View style={styles.signedBadge}>
-                    <Text style={styles.signedBadgeText}>
-                      SIGNED
-                    </Text>
-                  </View>
-                </View>
-
-                <View style={styles.signatureArea}>
+                <View style={styles.signatureImageContainer}>
                   {data.facilitySignature ? (
                     <Image
                       src={data.facilitySignature}
-                      style={styles.signature}
+                      style={styles.signatureImage}
                     />
                   ) : (
-                    <Text style={styles.valueNormal}>
-                      Signature not available
+                    <Text style={styles.noSignature}>
+                      No signature recorded
                     </Text>
                   )}
-
-                  <View style={styles.signatureLine} />
                 </View>
 
-                <Text style={styles.signName}>
-                  {display(data.facilityRepresentative)}
-                </Text>
+                <View style={styles.signatureLine}>
+                  <Text style={styles.signatureName}>
+                    {displayValue(data.facilityRepresentative)}
+                  </Text>
 
-                <Text style={styles.signDate}>
-                  Signed: {display(data.facilitySignedAt)}
-                </Text>
+                  <Text style={styles.signatureDate}>
+                    Signed: {displayValue(data.facilitySignedAt)}
+                  </Text>
+                </View>
               </View>
 
-              <View style={styles.signoffBox}>
-                <Text style={styles.signoffTitle}>
+              <View style={styles.signatureBox}>
+                <Text style={styles.signatureHeading}>
                   Disposal Confirmation
                 </Text>
 
-                <Text
-                  style={{
-                    marginTop: 10,
-                    fontSize: 6.6,
-                    lineHeight: 9,
-                    color: "#59666d",
-                  }}
-                >
-                  The disposal facility confirms receipt of
-                  the waste described on this certificate for
-                  the disposal method stated above.
-                </Text>
-
-                <Text
-                  style={{
-                    marginTop: 9,
-                    fontSize: 6.2,
-                    color: "#8a959c",
-                  }}
-                >
-                  Facility:
-                </Text>
-
-                <Text
-                  style={{
-                    marginTop: 2,
-                    fontSize: 7,
-                    fontWeight: "bold",
-                    color: "#263238",
-                  }}
-                >
-                  {display(data.disposalFacilityName)}
+                <Text style={styles.confirmationText}>
+                  The disposal facility representative confirms
+                  receipt and processing of the waste/material
+                  described in this certificate according to the
+                  disposal method recorded above.
                 </Text>
               </View>
             </View>
           </View>
+        </View>
 
-          {/* =================================================
-              FINAL STATEMENT
-          ================================================= */}
+        {/* =================================================
+            FINAL CONFIRMATION
+        ================================================= */}
 
-          <View style={styles.statement}>
-            <Text style={styles.statementTitle}>
-              FINAL DISPOSAL STATEMENT
-            </Text>
+        <View style={styles.confirmation}>
+          <Text style={styles.confirmationTitle}>
+            Final Disposal Confirmation
+          </Text>
 
-            <Text style={styles.statementText}>
-              This Certificate of Disposal records the
-              collection, receipt and disposal of the waste
-              identified above. The certificate has been signed
-              by the client representative and the disposal
-              facility representative and forms part of the
-              Skip Co Solutions job record.
-            </Text>
-          </View>
+          <Text style={styles.confirmationText}>
+            This Certificate of Disposal forms part of the official
+            waste collection and disposal record for the above job.
+            The certificate should be retained together with the
+            relevant job and disposal documentation.
+          </Text>
         </View>
 
         {/* =================================================
@@ -944,14 +795,30 @@ export default function DisposalCertificatePDF({
         ================================================= */}
 
         <View style={styles.footer}>
-          <Text style={styles.footerLeft}>
-            SKIP CO SOLUTIONS · WASTE COLLECTION &amp; DISPOSAL
-          </Text>
+          <View style={styles.footerLeft}>
+            <Text style={styles.footerText}>
+              Skip Co Solutions
+            </Text>
 
-          <Text style={styles.footerRight}>
-            {display(data.referenceNumber)}
-          </Text>
+            <Text style={styles.footerText}>
+              Pellesier, Bloemfontein
+            </Text>
+          </View>
+
+          <View style={styles.footerRight}>
+            <Text style={styles.footerText}>
+              062 737 9728
+            </Text>
+
+            <Text style={styles.footerText}>
+              ddw.trading@outlook.com
+            </Text>
+          </View>
         </View>
+
+        <Text style={styles.watermark}>
+          DDW Consolidate Pty (Ltd) t/a SkipCo Solutions
+        </Text>
       </Page>
     </Document>
   );
