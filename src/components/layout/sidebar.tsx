@@ -14,6 +14,7 @@ import {
   FileText,
   Clock3,
   CalendarDays,
+  Package,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useEffect, useState } from "react";
@@ -106,20 +107,6 @@ export function Sidebar({ open, onClose }: SidebarProps) {
    * =========================================================
    * NAVIGATION GROUPS
    * =========================================================
-   *
-   * mainNavItems:
-   *
-   * 0 = Dashboard
-   * 1 = Customers
-   * 2 = Invoices
-   * 3 = Quotes
-   * 4 = Payments
-   * 5 = Statements
-   * 6 = Employees
-   * 7 = Contractors
-   * 8 = Settings
-   *
-   * Jobs is added manually because it exists at /jobs.
    */
 
   // Business
@@ -202,7 +189,37 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         </p>
 
         <div className="space-y-1">
+          {/* Dashboard + Customers */}
+
           {renderNavItems(businessItems)}
+
+          {/* =================================================
+              PRODUCTS
+          ================================================= */}
+
+          <Link
+            href="/products"
+            onClick={onClose}
+            className={cn(
+              "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
+              pathname === "/products" ||
+                pathname.startsWith("/products/")
+                ? "bg-primary text-white shadow-md shadow-primary/25"
+                : "text-charcoal-600 hover:bg-charcoal-50 hover:text-charcoal-900 dark:text-charcoal-400 dark:hover:bg-charcoal-800 dark:hover:text-white"
+            )}
+          >
+            <Package
+              className={cn(
+                "h-5 w-5 shrink-0",
+                pathname === "/products" ||
+                  pathname.startsWith("/products/")
+                  ? "text-white"
+                  : "text-charcoal-400 group-hover:text-charcoal-600 dark:group-hover:text-charcoal-300"
+              )}
+            />
+
+            <span>Products</span>
+          </Link>
         </div>
 
         <div className="my-5 border-t border-charcoal-200 dark:border-charcoal-800" />
