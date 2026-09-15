@@ -10,12 +10,19 @@ interface DashboardShellProps {
   subtitle?: string;
 }
 
-export function DashboardShell({ children, title, subtitle }: DashboardShellProps) {
+export function DashboardShell({
+  children,
+  title,
+  subtitle,
+}: DashboardShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
     <div className="min-h-screen bg-charcoal-50 dark:bg-charcoal-950">
-      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <Sidebar
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+      />
 
       <div className="lg:pl-64">
         <TopNav
@@ -23,7 +30,10 @@ export function DashboardShell({ children, title, subtitle }: DashboardShellProp
           title={title}
           subtitle={subtitle}
         />
-        <main className="p-4 lg:p-8">{children}</main>
+
+        <main className="p-4 lg:p-8">
+          {children}
+        </main>
       </div>
     </div>
   );

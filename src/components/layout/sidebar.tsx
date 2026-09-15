@@ -27,12 +27,6 @@ interface SidebarProps {
 export function Sidebar({ open, onClose }: SidebarProps) {
   const pathname = usePathname();
 
-  /*
-   * =========================================================
-   * EMPLOYEES NAVIGATION STATE
-   * =========================================================
-   */
-
   const employeeSectionActive =
     pathname === "/employees" ||
     pathname.startsWith("/employees/");
@@ -46,10 +40,6 @@ export function Sidebar({ open, onClose }: SidebarProps) {
 
   const [payrollOpen, setPayrollOpen] =
     useState(payrollSectionActive);
-
-  /*
-   * Automatically open Employees when on an Employees page.
-   */
 
   useEffect(() => {
     if (employeeSectionActive) {
@@ -68,12 +58,18 @@ export function Sidebar({ open, onClose }: SidebarProps) {
    * =========================================================
    */
 
-  const renderNavItems = (items: typeof mainNavItems) =>
+  const renderNavItems = (
+    items: Array<{
+      title: string;
+      href: string;
+      icon: React.ComponentType<{ className?: string }>;
+    }>
+  ) =>
     items.map((item) => {
       const isActive =
         pathname === item.href ||
         (item.href !== "/dashboard" &&
-          pathname.startsWith(item.href));
+          pathname.startsWith(`${item.href}/`));
 
       const Icon = item.icon;
 
@@ -109,14 +105,16 @@ export function Sidebar({ open, onClose }: SidebarProps) {
    * =========================================================
    */
 
-  // Business
-  // Dashboard + Customers
   const businessItems = [
     mainNavItems[0],
     mainNavItems[1],
+    {
+      title: "Products",
+      href: "/products",
+      icon: Package,
+    },
   ];
 
-  // Sales
   const salesItems = [
     ...mainNavItems.slice(2, 6),
     {
@@ -189,37 +187,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         </p>
 
         <div className="space-y-1">
-          {/* Dashboard + Customers */}
-
           {renderNavItems(businessItems)}
-
-          {/* =================================================
-              PRODUCTS
-          ================================================= */}
-
-          <Link
-            href="/products"
-            onClick={onClose}
-            className={cn(
-              "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
-              pathname === "/products" ||
-                pathname.startsWith("/products/")
-                ? "bg-primary text-white shadow-md shadow-primary/25"
-                : "text-charcoal-600 hover:bg-charcoal-50 hover:text-charcoal-900 dark:text-charcoal-400 dark:hover:bg-charcoal-800 dark:hover:text-white"
-            )}
-          >
-            <Package
-              className={cn(
-                "h-5 w-5 shrink-0",
-                pathname === "/products" ||
-                  pathname.startsWith("/products/")
-                  ? "text-white"
-                  : "text-charcoal-400 group-hover:text-charcoal-600 dark:group-hover:text-charcoal-300"
-              )}
-            />
-
-            <span>Products</span>
-          </Link>
         </div>
 
         <div className="my-5 border-t border-charcoal-200 dark:border-charcoal-800" />
@@ -347,9 +315,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
                       );
                     })}
 
-                  {/* =================================================
-                      PAYROLL PARENT
-                  ================================================= */}
+                  {/* Payroll */}
 
                   <button
                     type="button"
@@ -386,9 +352,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
                     />
                   </button>
 
-                  {/* =================================================
-                      PAYROLL SUBMENU
-                  ================================================= */}
+                  {/* Payroll submenu */}
 
                   <AnimatePresence initial={false}>
                     {payrollOpen && (
@@ -448,9 +412,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
                     )}
                   </AnimatePresence>
 
-                  {/* =================================================
-                      ATTENDANCE
-                  ================================================= */}
+                  {/* Attendance */}
 
                   {employeesSubItems
                     .filter(
@@ -493,9 +455,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
                       );
                     })}
 
-                  {/* =================================================
-                      LEAVE
-                  ================================================= */}
+                  {/* Leave */}
 
                   {employeesSubItems
                     .filter(
