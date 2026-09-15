@@ -23,6 +23,20 @@ export const metadata: Metadata = {
     "Bloemfontein",
     "SkipCo",
   ],
+
+  icons: {
+    icon: "/icon.svg",
+    shortcut: "/icon.svg",
+    apple: "/favicon.jpg",
+  },
+
+  manifest: "/manifest.json",
+
+  appleWebApp: {
+    capable: true,
+    title: "Skip Co Business Manager",
+    statusBarStyle: "default",
+  },
 };
 
 export default function RootLayout({

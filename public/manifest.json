@@ -1,0 +1,17 @@
+{
+  "name": "Skip Co Business Manager",
+  "short_name": "SkipCo",
+  "description": "Skip Co Solutions Business Manager",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
+  "icons": [
+    {
+      "src": "/favicon.jpg",
+      "sizes": "any",
+      "type": "image/jpeg",
+      "purpose": "any"
+    }
+  ]
+}
