@@ -24,12 +24,6 @@ export const metadata: Metadata = {
     "SkipCo",
   ],
 
-  icons: {
-    icon: "/icon.svg",
-    shortcut: "/icon.svg",
-    apple: "/favicon.jpg",
-  },
-
   manifest: "/manifest.json",
 
   appleWebApp: {
