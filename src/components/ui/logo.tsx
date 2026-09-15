@@ -1,5 +1,5 @@
+import Image from "next/image";
 import { cn } from "@/lib/utils";
-import { siteConfig } from "@/config/site";
 
 interface LogoProps {
   className?: string;
@@ -7,31 +7,62 @@ interface LogoProps {
   size?: "sm" | "md" | "lg";
 }
 
-export function Logo({ className, showText = true, size = "md" }: LogoProps) {
+export function Logo({
+  className,
+  showText = true,
+  size = "md",
+}: LogoProps) {
   const sizes = {
-    sm: { icon: "h-7 w-7 text-xs", text: "text-sm", sub: "text-[10px]" },
-    md: { icon: "h-9 w-9 text-sm", text: "text-lg", sub: "text-xs" },
-    lg: { icon: "h-11 w-11 text-base", text: "text-xl", sub: "text-sm" },
+    sm: {
+      image: "h-8 w-auto max-w-[150px]",
+      text: "text-sm",
+      sub: "text-[10px]",
+    },
+    md: {
+      image: "h-10 w-auto max-w-[190px]",
+      text: "text-lg",
+      sub: "text-xs",
+    },
+    lg: {
+      image: "h-14 w-auto max-w-[220px]",
+      text: "text-xl",
+      sub: "text-sm",
+    },
   };
 
   const s = sizes[size];
 
   return (
     <div className={cn("flex items-center gap-3", className)}>
-      <div
+      <Image
+        src="/skipco-logo.jpg"
+        alt="Skip Co Solutions"
+        width={220}
+        height={80}
+        priority
         className={cn(
-          "flex items-center justify-center rounded-xl gradient-primary font-bold text-white shadow-lg shadow-primary/25",
-          s.icon
+          "object-contain object-left",
+          s.image
         )}
-      >
-        SC
-      </div>
+      />
+
       {showText && (
         <div className="flex flex-col">
-          <span className={cn("font-semibold leading-tight text-charcoal-900 dark:text-white", s.text)}>
-            {siteConfig.shortName}
+          <span
+            className={cn(
+              "font-semibold leading-tight text-charcoal-900 dark:text-white",
+              s.text
+            )}
+          >
+            Skip Co Solutions
           </span>
-          <span className={cn("leading-tight text-charcoal-500 dark:text-charcoal-400", s.sub)}>
+
+          <span
+            className={cn(
+              "leading-tight text-charcoal-500 dark:text-charcoal-400",
+              s.sub
+            )}
+          >
             Business Manager
           </span>
         </div>
