@@ -2,7 +2,7 @@
 
 import { cn } from "@/lib/utils";
 import { mainNavItems } from "@/config/navigation";
-import { Logo } from "@/components/ui/logo";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -163,7 +163,14 @@ export function Sidebar({ open, onClose }: SidebarProps) {
           onClick={onClose}
           className="flex items-center"
         >
-          <Logo />
+          <Image
+            src="/skipco-logo.jpg"
+            alt="Skip Co Solutions"
+            width={180}
+            height={60}
+            priority
+            className="h-12 w-auto object-contain"
+          />
         </Link>
 
         <button
