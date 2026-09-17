@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   BriefcaseBusiness,
   Check,
@@ -8,6 +8,7 @@ import {
   Loader2,
   Pencil,
   Plus,
+  Search,
   Trash2,
   X,
 } from "lucide-react";
@@ -110,6 +111,8 @@ export default function JobsPage() {
 
   const [form, setForm] = useState(emptyForm);
 
+  const [searchTerm, setSearchTerm] = useState("");
+
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
@@ -133,7 +136,7 @@ export default function JobsPage() {
         supabase
           .from("jobs")
           .select("*")
-          .order("job_date", { ascending: false }),
+          .order("created_at", { ascending: false }),
 
         supabase
           .from("customers")
@@ -188,7 +191,16 @@ export default function JobsPage() {
         throw new Error(certificatesResult.error.message);
       }
 
-      setJobs((jobsResult.data ?? []) as Job[]);
+      const loadedJobs = (jobsResult.data ?? []) as Job[];
+
+      loadedJobs.sort((a, b) => {
+        const aTime = new Date(a.created_at).getTime();
+        const bTime = new Date(b.created_at).getTime();
+
+        return bTime - aTime;
+      });
+
+      setJobs(loadedJobs);
       setCustomers((customersResult.data ?? []) as Customer[]);
       setEmployees((employeesResult.data ?? []) as Employee[]);
       setContractors((contractorsResult.data ?? []) as Contractor[]);
@@ -256,7 +268,10 @@ export default function JobsPage() {
       collection_address: job.collection_address ?? "",
       delivery_address: job.delivery_address ?? "",
       assigned_employee_id: job.assigned_employee_id ?? "",
-      status: job.status === "In Progress" ? "In Progress" : "Pending",
+      status:
+        job.status === "In Progress"
+          ? "In Progress"
+          : "Pending",
       invoice_id: job.invoice_id ?? "",
       notes: job.notes ?? "",
     });
@@ -575,12 +590,65 @@ export default function JobsPage() {
       isCertificateCompleted(job.id)
   ).length;
 
+  const filteredJobs = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+
+    if (!term) {
+      return jobs;
+    }
+
+    return jobs.filter((job) => {
+      const customerName = getCustomerName(
+        job.customer_id
+      );
+
+      const employeeName = getEmployeeName(
+        job.assigned_employee_id
+      );
+
+      const contractorName = getContractorName(
+        job.contractor_id
+      );
+
+      const invoiceNumber = getInvoiceNumber(
+        job.invoice_id
+      );
+
+      const searchableText = [
+        job.job_number,
+        customerName,
+        job.job_type,
+        job.description,
+        job.collection_address,
+        job.delivery_address,
+        job.status,
+        employeeName,
+        contractorName,
+        invoiceNumber,
+        job.notes,
+        job.job_date,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      return searchableText.includes(term);
+    });
+  }, [
+    jobs,
+    searchTerm,
+    customers,
+    employees,
+    contractors,
+    invoices,
+  ]);
+
   return (
     <DashboardShell
       title="Jobs"
       subtitle="Manage collections, deliveries and disposal certificates"
     >
-      <div className="space-y-6">
+      <div className="space-y-5">
         {/* PAGE HEADER */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <PageHeader
@@ -627,79 +695,106 @@ export default function JobsPage() {
           </div>
         )}
 
-        {/* SUMMARY CARDS */}
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <div className="rounded-xl border border-charcoal-200 bg-white p-5 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-charcoal-500">
-                  Total Jobs
-                </p>
+        {/* COMPACT SUMMARY */}
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <div className="flex items-center gap-3 rounded-lg border border-charcoal-200 bg-white px-4 py-3 shadow-sm">
+            <div className="rounded-md bg-charcoal-100 p-2">
+              <BriefcaseBusiness className="h-4 w-4 text-charcoal-700" />
+            </div>
 
-                <p className="mt-2 text-3xl font-bold text-charcoal-900">
-                  {totalJobs}
-                </p>
-              </div>
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-charcoal-500">
+                Total Jobs
+              </p>
 
-              <div className="rounded-lg bg-charcoal-100 p-3">
-                <BriefcaseBusiness className="h-5 w-5 text-charcoal-700" />
-              </div>
+              <p className="text-xl font-bold text-charcoal-900">
+                {totalJobs}
+              </p>
             </div>
           </div>
 
-          <div className="rounded-xl border border-charcoal-200 bg-white p-5 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-charcoal-500">
-                  Pending
-                </p>
+          <div className="flex items-center gap-3 rounded-lg border border-charcoal-200 bg-white px-4 py-3 shadow-sm">
+            <div className="rounded-md bg-yellow-50 p-2">
+              <BriefcaseBusiness className="h-4 w-4 text-yellow-700" />
+            </div>
 
-                <p className="mt-2 text-3xl font-bold text-charcoal-900">
-                  {pendingJobs}
-                </p>
-              </div>
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-charcoal-500">
+                Pending
+              </p>
 
-              <div className="rounded-lg bg-yellow-50 p-3">
-                <BriefcaseBusiness className="h-5 w-5 text-yellow-700" />
-              </div>
+              <p className="text-xl font-bold text-charcoal-900">
+                {pendingJobs}
+              </p>
             </div>
           </div>
 
-          <div className="rounded-xl border border-charcoal-200 bg-white p-5 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-charcoal-500">
-                  In Progress
-                </p>
+          <div className="flex items-center gap-3 rounded-lg border border-charcoal-200 bg-white px-4 py-3 shadow-sm">
+            <div className="rounded-md bg-blue-50 p-2">
+              <BriefcaseBusiness className="h-4 w-4 text-blue-700" />
+            </div>
 
-                <p className="mt-2 text-3xl font-bold text-charcoal-900">
-                  {inProgressJobs}
-                </p>
-              </div>
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-charcoal-500">
+                In Progress
+              </p>
 
-              <div className="rounded-lg bg-blue-50 p-3">
-                <BriefcaseBusiness className="h-5 w-5 text-blue-700" />
-              </div>
+              <p className="text-xl font-bold text-charcoal-900">
+                {inProgressJobs}
+              </p>
             </div>
           </div>
 
-          <div className="rounded-xl border border-charcoal-200 bg-white p-5 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-charcoal-500">
-                  Completed
-                </p>
+          <div className="flex items-center gap-3 rounded-lg border border-charcoal-200 bg-white px-4 py-3 shadow-sm">
+            <div className="rounded-md bg-green-50 p-2">
+              <Check className="h-4 w-4 text-green-700" />
+            </div>
 
-                <p className="mt-2 text-3xl font-bold text-charcoal-900">
-                  {completedJobs}
-                </p>
-              </div>
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-charcoal-500">
+                Completed
+              </p>
 
-              <div className="rounded-lg bg-green-50 p-3">
-                <Check className="h-5 w-5 text-green-700" />
-              </div>
+              <p className="text-xl font-bold text-charcoal-900">
+                {completedJobs}
+              </p>
             </div>
           </div>
+        </div>
+
+        {/* SEARCH */}
+        <div className="rounded-xl border border-charcoal-200 bg-white p-4 shadow-sm">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-charcoal-400" />
+
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(event) =>
+                setSearchTerm(event.target.value)
+              }
+              placeholder="Search jobs, customers, job numbers, sites..."
+              className="w-full rounded-lg border border-charcoal-300 bg-white py-3 pl-10 pr-10 text-sm text-charcoal-900 outline-none transition placeholder:text-charcoal-400 focus:border-charcoal-500 focus:ring-2 focus:ring-charcoal-200"
+            />
+
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-charcoal-400 transition hover:bg-charcoal-100 hover:text-charcoal-700"
+                aria-label="Clear search"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+
+          {searchTerm && (
+            <p className="mt-2 text-xs text-charcoal-500">
+              Showing {filteredJobs.length} of{" "}
+              {jobs.length} jobs
+            </p>
+          )}
         </div>
 
         {/* ADD / EDIT FORM */}
@@ -1044,13 +1139,26 @@ export default function JobsPage() {
         {/* JOBS LIST */}
         <div className="rounded-xl border border-charcoal-200 bg-white shadow-sm">
           <div className="border-b border-charcoal-200 px-6 py-4">
-            <h2 className="text-lg font-semibold text-charcoal-900">
-              Jobs
-            </h2>
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-charcoal-900">
+                  All Jobs
+                </h2>
 
-            <p className="mt-1 text-sm text-charcoal-500">
-              Collections, deliveries and disposal certificates.
-            </p>
+                <p className="text-sm text-charcoal-500">
+                  Newest jobs first.
+                </p>
+              </div>
+
+              {!loading && (
+                <span className="text-sm text-charcoal-500">
+                  {filteredJobs.length}{" "}
+                  {filteredJobs.length === 1
+                    ? "job"
+                    : "jobs"}
+                </span>
+              )}
+            </div>
           </div>
 
           {loading ? (
@@ -1084,9 +1192,35 @@ export default function JobsPage() {
                 Add Job
               </button>
             </div>
+          ) : filteredJobs.length === 0 ? (
+            <div className="flex min-h-[250px] flex-col items-center justify-center px-6 text-center">
+              <div className="rounded-full bg-charcoal-100 p-4">
+                <Search className="h-7 w-7 text-charcoal-600" />
+              </div>
+
+              <h3 className="mt-4 text-lg font-semibold text-charcoal-900">
+                No jobs found
+              </h3>
+
+              <p className="mt-1 max-w-md text-sm text-charcoal-500">
+                No jobs match{" "}
+                <span className="font-medium text-charcoal-700">
+                  "{searchTerm}"
+                </span>
+                .
+              </p>
+
+              <button
+                type="button"
+                onClick={() => setSearchTerm("")}
+                className="mt-5 rounded-lg border border-charcoal-300 px-4 py-2.5 text-sm font-medium text-charcoal-700 transition hover:bg-charcoal-50"
+              >
+                Clear Search
+              </button>
+            </div>
           ) : (
             <div className="divide-y divide-charcoal-200">
-              {jobs.map((job) => {
+              {filteredJobs.map((job) => {
                 const certificate =
                   getCertificate(job.id);
 
@@ -1110,7 +1244,9 @@ export default function JobsPage() {
                             className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
                               job.status === "Pending"
                                 ? "bg-yellow-100 text-yellow-800"
-                                : "bg-blue-100 text-blue-800"
+                                : job.status === "In Progress"
+                                  ? "bg-blue-100 text-blue-800"
+                                  : "bg-charcoal-100 text-charcoal-700"
                             }`}
                           >
                             {job.status}

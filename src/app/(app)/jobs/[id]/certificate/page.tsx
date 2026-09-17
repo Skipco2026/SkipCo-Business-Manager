@@ -97,7 +97,6 @@ interface DisposalCertificate {
   updated_at?: string;
 }
 
-
 /* =========================================================
    HELPERS
 ========================================================= */
@@ -182,6 +181,7 @@ function SignaturePad({
         );
 
         context.fillStyle = "#ffffff";
+
         context.fillRect(
           0,
           0,
@@ -1020,13 +1020,27 @@ export default function DisposalCertificatePage() {
     setGeneratingPDF(true);
 
     try {
-      const blob = await pdf(
+      /*
+       * IMPORTANT:
+       * DisposalCertificatePDF is a DEFAULT export.
+       * It must therefore be imported as:
+       *
+       * import DisposalCertificatePDF from "...";
+       */
+
+      const pdfDocument = (
         <DisposalCertificatePDF data={pdfData} />
+      );
+
+      const blob = await pdf(
+        pdfDocument
       ).toBlob();
 
-      const url = URL.createObjectURL(blob);
+      const url =
+        URL.createObjectURL(blob);
 
-      const link = document.createElement("a");
+      const link =
+        document.createElement("a");
 
       link.href = url;
 
@@ -1041,7 +1055,7 @@ export default function DisposalCertificatePage() {
 
       document.body.removeChild(link);
 
-      setTimeout(() => {
+      window.setTimeout(() => {
         URL.revokeObjectURL(url);
       }, 1000);
 
@@ -1113,9 +1127,7 @@ export default function DisposalCertificatePage() {
     >
       <div className="space-y-6">
 
-        {/* =================================================
-            TOP HEADER
-        ================================================= */}
+        {/* TOP HEADER */}
 
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
 
@@ -1127,24 +1139,18 @@ export default function DisposalCertificatePage() {
             className="inline-flex w-fit items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50"
           >
             <ArrowLeft className="h-4 w-4" />
-
             Back to Job
           </button>
 
-          {/* ===============================================
-              ACTIONS
-          =============================================== */}
-
           <div className="flex flex-wrap items-center gap-3">
-
-            {/* =============================================
-                DOWNLOAD PDF
-            ============================================= */}
 
             <button
               type="button"
               onClick={downloadPDF}
-              disabled={generatingPDF}
+              disabled={
+                generatingPDF ||
+                !certificateCompleted
+              }
               className="inline-flex items-center gap-2 rounded-lg bg-cyan-600 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {generatingPDF ? (
@@ -1158,14 +1164,9 @@ export default function DisposalCertificatePage() {
                 : "Download PDF"}
             </button>
 
-            {/* =============================================
-                STATUS
-            ============================================= */}
-
             {certificateCompleted ? (
               <div className="inline-flex items-center gap-2 rounded-lg bg-green-100 px-4 py-2.5 text-sm font-semibold text-green-700">
                 <Check className="h-4 w-4" />
-
                 Certificate Completed
               </div>
             ) : collectionSigned ? (
@@ -1177,12 +1178,12 @@ export default function DisposalCertificatePage() {
                 Awaiting Collection
               </div>
             )}
+
           </div>
+
         </div>
 
-        {/* =================================================
-            ERROR
-        ================================================= */}
+        {/* ERROR */}
 
         {error && (
           <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -1190,9 +1191,7 @@ export default function DisposalCertificatePage() {
           </div>
         )}
 
-        {/* =================================================
-            SUCCESS
-        ================================================= */}
+        {/* SUCCESS */}
 
         {success && (
           <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
@@ -1200,9 +1199,7 @@ export default function DisposalCertificatePage() {
           </div>
         )}
 
-        {/* =================================================
-            CERTIFICATE HEADER
-        ================================================= */}
+        {/* CERTIFICATE HEADER */}
 
         <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
 
@@ -1213,6 +1210,7 @@ export default function DisposalCertificatePage() {
             <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
 
               <div>
+
                 <div className="text-2xl font-black tracking-wide">
                   SKIP CO
                 </div>
@@ -1225,6 +1223,7 @@ export default function DisposalCertificatePage() {
                   DDW Consolidate Pty (Ltd) t/a
                   SkipCo Solutions
                 </p>
+
               </div>
 
               <div className="text-left sm:text-right">
@@ -1245,7 +1244,9 @@ export default function DisposalCertificatePage() {
                 </p>
 
               </div>
+
             </div>
+
           </div>
 
           <div className="px-6 py-6 sm:px-8">
@@ -1276,18 +1277,17 @@ export default function DisposalCertificatePage() {
             </div>
 
           </div>
+
         </div>
 
-        {/* =================================================
-            CLIENT / COLLECTION
-        ================================================= */}
+        {/* COLLECTION SECTION */}
 
         <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
 
           <div className="flex items-center justify-between rounded-t-2xl bg-[#111111] px-5 py-3">
 
             <h3 className="text-sm font-bold uppercase tracking-wider text-white">
-              1. Collection Details
+              1. Collection
             </h3>
 
             <span className="text-xs font-semibold uppercase tracking-wider text-cyan-400">
@@ -1299,6 +1299,7 @@ export default function DisposalCertificatePage() {
           <div className="grid gap-5 p-5 md:grid-cols-2">
 
             <div>
+
               <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">
                 Customer
               </p>
@@ -1308,24 +1309,13 @@ export default function DisposalCertificatePage() {
                   customer?.company_name ||
                   "-"}
               </div>
+
             </div>
 
             <div>
-              <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">
-                Collected By
-              </p>
 
-              <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-800">
-                {certificate?.collected_by ||
-                  (employee
-                    ? `${employee.first_name} ${employee.last_name}`
-                    : "-")}
-              </div>
-            </div>
-
-            <div>
               <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">
-                Collection Date
+                Job Date
               </p>
 
               <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-800">
@@ -1334,24 +1324,14 @@ export default function DisposalCertificatePage() {
                     job.job_date
                 )}
               </div>
-            </div>
 
-            <div>
-              <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">
-                Job Type
-              </p>
-
-              <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-800">
-                {job.job_type || "-"}
-              </div>
             </div>
 
             <div className="md:col-span-2">
 
               <p className="mb-1 flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-gray-400">
                 <MapPin className="h-3.5 w-3.5" />
-
-                Collection Location
+                Collection Address
               </p>
 
               <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-800">
@@ -1362,7 +1342,19 @@ export default function DisposalCertificatePage() {
 
             </div>
 
-            <div className="md:col-span-2">
+            <div>
+
+              <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">
+                Job Type
+              </p>
+
+              <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-800">
+                {job.job_type || "-"}
+              </div>
+
+            </div>
+
+            <div>
 
               <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">
                 Job Description
@@ -1374,38 +1366,17 @@ export default function DisposalCertificatePage() {
 
             </div>
 
-          </div>
-        </div>
-
-        {/* =================================================
-            WASTE DETAILS
-        ================================================= */}
-
-        <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
-
-          <div className="border-b border-gray-200 px-5 py-4">
-
-            <h3 className="text-sm font-bold uppercase tracking-wider text-gray-900">
-              Waste Collection Details
-            </h3>
-
-          </div>
-
-          <div className="grid gap-5 p-5 md:grid-cols-2">
-
             <div>
 
-              <label className="mb-1.5 block text-sm font-semibold text-gray-700">
-                Waste Type *
-              </label>
+              <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">
+                Waste Type
+              </p>
 
               <input
                 type="text"
                 value={wasteType}
                 onChange={(event) =>
-                  setWasteType(
-                    event.target.value
-                  )
+                  setWasteType(event.target.value)
                 }
                 disabled={collectionSigned}
                 placeholder="e.g. General Waste, Building Rubble"
@@ -1416,17 +1387,15 @@ export default function DisposalCertificatePage() {
 
             <div>
 
-              <label className="mb-1.5 block text-sm font-semibold text-gray-700">
-                Quantity / Volume *
-              </label>
+              <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">
+                Quantity / Volume
+              </p>
 
               <input
                 type="text"
                 value={quantityVolume}
                 onChange={(event) =>
-                  setQuantityVolume(
-                    event.target.value
-                  )
+                  setQuantityVolume(event.target.value)
                 }
                 disabled={collectionSigned}
                 placeholder="e.g. 6m³"
@@ -1437,17 +1406,15 @@ export default function DisposalCertificatePage() {
 
             <div>
 
-              <label className="mb-1.5 block text-sm font-semibold text-gray-700">
+              <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">
                 Packaging / Container
-              </label>
+              </p>
 
               <input
                 type="text"
                 value={packaging}
                 onChange={(event) =>
-                  setPackaging(
-                    event.target.value
-                  )
+                  setPackaging(event.target.value)
                 }
                 disabled={collectionSigned}
                 placeholder="e.g. Skip, Bags, Loose"
@@ -1456,163 +1423,122 @@ export default function DisposalCertificatePage() {
 
             </div>
 
-            <div>
+            {/* COLLECTION SIGN-OFF */}
 
-              <label className="mb-1.5 block text-sm font-semibold text-gray-700">
-                Condition at Receipt
-              </label>
+            <div className="md:col-span-2 border-t border-gray-200 pt-5">
 
-              <input
-                type="text"
-                value={conditionAtReceipt}
-                onChange={(event) =>
-                  setConditionAtReceipt(
-                    event.target.value
-                  )
-                }
-                disabled={collectionSigned}
-                placeholder="e.g. Acceptable"
-                className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 disabled:bg-gray-100"
-              />
+              <div className="mb-4 flex items-center justify-between">
+
+                <div>
+
+                  <h4 className="text-sm font-bold uppercase tracking-wide text-gray-900">
+                    Collection Sign-off
+                  </h4>
+
+                  <p className="mt-1 text-xs text-gray-500">
+                    Person confirming collection of the waste.
+                  </p>
+
+                </div>
+
+                {collectionSigned && (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-3 py-1.5 text-xs font-semibold text-green-700">
+                    <Check className="h-3.5 w-3.5" />
+                    Signed
+                  </span>
+                )}
+
+              </div>
+
+              <div className="grid gap-5 lg:grid-cols-2">
+
+                <div>
+
+                  <label className="mb-1.5 block text-sm font-semibold text-gray-700">
+                    Sign-off Person's Name *
+                  </label>
+
+                  <input
+                    type="text"
+                    value={clientName}
+                    onChange={(event) =>
+                      setClientName(event.target.value)
+                    }
+                    disabled={collectionSigned}
+                    placeholder="Enter full name"
+                    className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 disabled:bg-gray-100"
+                  />
+
+                </div>
+
+                <div>
+
+                  <p className="mb-2 text-sm font-semibold text-gray-700">
+                    Signature *
+                  </p>
+
+                  <SignaturePad
+                    value={clientSignature}
+                    onChange={setClientSignature}
+                    disabled={collectionSigned}
+                  />
+
+                </div>
+
+              </div>
+
+              {!collectionSigned && (
+                <div className="mt-5 flex justify-end border-t border-gray-100 pt-5">
+
+                  <button
+                    type="button"
+                    onClick={signCollection}
+                    disabled={saving}
+                    className="inline-flex items-center gap-2 rounded-lg bg-cyan-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+
+                    {saving ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Save className="h-4 w-4" />
+                    )}
+
+                    {saving
+                      ? "Saving..."
+                      : "Sign Collection"}
+
+                  </button>
+
+                </div>
+              )}
+
+              {collectionSigned && (
+                <div className="mt-5 rounded-lg bg-green-50 px-4 py-3 text-sm text-green-700">
+                  Collection signed on{" "}
+                  <strong>
+                    {formatDateTime(
+                      certificate?.client_signed_at ||
+                        null
+                    )}
+                  </strong>
+                  .
+                </div>
+              )}
 
             </div>
 
           </div>
+
         </div>
 
-        {/* =================================================
-            CLIENT SIGN-OFF
-        ================================================= */}
-
-        <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
-
-          <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4">
-
-            <div>
-
-              <h3 className="text-sm font-bold uppercase tracking-wider text-gray-900">
-                Client Collection Sign-off
-              </h3>
-
-              <p className="mt-1 text-xs text-gray-500">
-                Client confirms the waste was collected
-                at the stated collection location.
-              </p>
-
-            </div>
-
-            {collectionSigned && (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-3 py-1.5 text-xs font-semibold text-green-700">
-
-                <Check className="h-3.5 w-3.5" />
-
-                Signed
-
-              </span>
-            )}
-
-          </div>
-
-          <div className="space-y-5 p-5">
-
-            <div>
-
-              <label className="mb-1.5 block text-sm font-semibold text-gray-700">
-                Client Name *
-              </label>
-
-              <input
-                type="text"
-                value={clientName}
-                onChange={(event) =>
-                  setClientName(
-                    event.target.value
-                  )
-                }
-                disabled={collectionSigned}
-                placeholder="Enter client's full name"
-                className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 disabled:bg-gray-100"
-              />
-
-            </div>
-
-            <div>
-
-              <div className="mb-2">
-
-                <p className="text-sm font-semibold text-gray-700">
-                  Client Signature *
-                </p>
-
-                <p className="mt-1 text-xs text-gray-500">
-                  Sign in the box below.
-                </p>
-
-              </div>
-
-              <SignaturePad
-                value={clientSignature}
-                onChange={setClientSignature}
-                disabled={collectionSigned}
-              />
-
-            </div>
-
-            {!collectionSigned && (
-              <div className="flex justify-end border-t border-gray-100 pt-5">
-
-                <button
-                  type="button"
-                  onClick={signCollection}
-                  disabled={saving}
-                  className="inline-flex items-center gap-2 rounded-lg bg-cyan-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-
-                  {saving ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Save className="h-4 w-4" />
-                  )}
-
-                  {saving
-                    ? "Saving..."
-                    : "Sign Collection"}
-
-                </button>
-
-              </div>
-            )}
-
-            {collectionSigned && (
-              <div className="rounded-lg bg-green-50 px-4 py-3 text-sm text-green-700">
-
-                Collection signed on{" "}
-
-                <strong>
-                  {formatDateTime(
-                    certificate?.client_signed_at ||
-                      null
-                  )}
-                </strong>
-
-                .
-
-              </div>
-            )}
-
-          </div>
-        </div>
-
-        {/* =================================================
-            DISPOSAL FACILITY
-        ================================================= */}
+        {/* DISPOSAL SECTION */}
 
         <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
 
           <div className="flex items-center justify-between rounded-t-2xl bg-[#111111] px-5 py-3">
 
             <h3 className="text-sm font-bold uppercase tracking-wider text-white">
-              2. Disposal Facility
+              2. Disposal
             </h3>
 
             <span className="text-xs font-semibold uppercase tracking-wider text-cyan-400">
@@ -1626,16 +1552,14 @@ export default function DisposalCertificatePage() {
             <div>
 
               <label className="mb-1.5 block text-sm font-semibold text-gray-700">
-                Disposal Facility Name *
+                Disposal Facility *
               </label>
 
               <input
                 type="text"
                 value={facilityName}
                 onChange={(event) =>
-                  setFacilityName(
-                    event.target.value
-                  )
+                  setFacilityName(event.target.value)
                 }
                 disabled={
                   !collectionSigned ||
@@ -1657,9 +1581,7 @@ export default function DisposalCertificatePage() {
                 type="date"
                 value={disposalDate}
                 onChange={(event) =>
-                  setDisposalDate(
-                    event.target.value
-                  )
+                  setDisposalDate(event.target.value)
                 }
                 disabled={
                   !collectionSigned ||
@@ -1679,9 +1601,7 @@ export default function DisposalCertificatePage() {
               <textarea
                 value={facilityAddress}
                 onChange={(event) =>
-                  setFacilityAddress(
-                    event.target.value
-                  )
+                  setFacilityAddress(event.target.value)
                 }
                 disabled={
                   !collectionSigned ||
@@ -1704,9 +1624,7 @@ export default function DisposalCertificatePage() {
                 type="text"
                 value={disposalMethod}
                 onChange={(event) =>
-                  setDisposalMethod(
-                    event.target.value
-                  )
+                  setDisposalMethod(event.target.value)
                 }
                 disabled={
                   !collectionSigned ||
@@ -1718,85 +1636,77 @@ export default function DisposalCertificatePage() {
 
             </div>
 
-            <div>
+            {/* DISPOSAL SIGN-OFF */}
 
-              <label className="mb-1.5 block text-sm font-semibold text-gray-700">
-                Facility Representative *
-              </label>
+            <div className="md:col-span-2 border-t border-gray-200 pt-5">
 
-              <input
-                type="text"
-                value={facilityRepresentative}
-                onChange={(event) =>
-                  setFacilityRepresentative(
-                    event.target.value
-                  )
-                }
-                disabled={
-                  !collectionSigned ||
-                  certificateCompleted
-                }
-                placeholder="Representative's full name"
-                className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 disabled:bg-gray-100"
-              />
+              <div className="mb-4 flex items-center justify-between">
 
-            </div>
+                <div>
 
-          </div>
-        </div>
+                  <h4 className="text-sm font-bold uppercase tracking-wide text-gray-900">
+                    Disposal Sign-off
+                  </h4>
 
-        {/* =================================================
-            FACILITY SIGNATURE
-        ================================================= */}
+                  <p className="mt-1 text-xs text-gray-500">
+                    Facility representative confirming disposal.
+                  </p>
 
-        {collectionSigned && (
-          <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
+                </div>
 
-            <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4">
-
-              <div>
-
-                <h3 className="text-sm font-bold uppercase tracking-wider text-gray-900">
-                  Disposal Facility Sign-off
-                </h3>
-
-                <p className="mt-1 text-xs text-gray-500">
-                  Facility representative confirms
-                  receipt and disposal of the waste.
-                </p>
+                {facilitySigned && (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-3 py-1.5 text-xs font-semibold text-green-700">
+                    <Check className="h-3.5 w-3.5" />
+                    Signed
+                  </span>
+                )}
 
               </div>
 
-              {facilitySigned && (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-3 py-1.5 text-xs font-semibold text-green-700">
+              <div className="grid gap-5 lg:grid-cols-2">
 
-                  <Check className="h-3.5 w-3.5" />
+                <div>
 
-                  Signed
+                  <label className="mb-1.5 block text-sm font-semibold text-gray-700">
+                    Sign-off Person's Name *
+                  </label>
 
-                </span>
-              )}
+                  <input
+                    type="text"
+                    value={facilityRepresentative}
+                    onChange={(event) =>
+                      setFacilityRepresentative(
+                        event.target.value
+                      )
+                    }
+                    disabled={
+                      !collectionSigned ||
+                      certificateCompleted
+                    }
+                    placeholder="Enter full name"
+                    className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 disabled:bg-gray-100"
+                  />
 
-            </div>
+                </div>
 
-            <div className="space-y-5 p-5">
+                <div>
 
-              <div>
+                  <p className="mb-2 text-sm font-semibold text-gray-700">
+                    Signature *
+                  </p>
 
-                <p className="mb-2 text-sm font-semibold text-gray-700">
-                  Facility Representative Signature *
-                </p>
+                  <SignaturePad
+                    value={facilitySignature}
+                    onChange={setFacilitySignature}
+                    disabled={certificateCompleted}
+                  />
 
-                <SignaturePad
-                  value={facilitySignature}
-                  onChange={setFacilitySignature}
-                  disabled={certificateCompleted}
-                />
+                </div>
 
               </div>
 
               {!certificateCompleted && (
-                <div className="flex justify-end border-t border-gray-100 pt-5">
+                <div className="mt-5 flex justify-end border-t border-gray-100 pt-5">
 
                   <button
                     type="button"
@@ -1821,7 +1731,7 @@ export default function DisposalCertificatePage() {
               )}
 
               {certificateCompleted && (
-                <div className="rounded-xl border border-green-200 bg-green-50 p-5">
+                <div className="mt-5 rounded-xl border border-green-200 bg-green-50 p-5">
 
                   <div className="flex items-start gap-3">
 
@@ -1858,12 +1768,12 @@ export default function DisposalCertificatePage() {
               )}
 
             </div>
-          </div>
-        )}
 
-        {/* =================================================
-            DOWNLOAD AREA
-        ================================================= */}
+          </div>
+
+        </div>
+
+        {/* DOWNLOAD AREA */}
 
         <div className="rounded-2xl border border-cyan-200 bg-cyan-50 p-5">
 
@@ -1886,7 +1796,10 @@ export default function DisposalCertificatePage() {
             <button
               type="button"
               onClick={downloadPDF}
-              disabled={generatingPDF}
+              disabled={
+                generatingPDF ||
+                !certificateCompleted
+              }
               className="inline-flex min-w-[220px] items-center justify-center gap-2 rounded-lg bg-cyan-600 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
 
@@ -1906,9 +1819,7 @@ export default function DisposalCertificatePage() {
 
         </div>
 
-        {/* =================================================
-            FOOTER
-        ================================================= */}
+        {/* FOOTER */}
 
         <div className="rounded-xl border border-gray-200 bg-white px-5 py-4 text-center text-xs text-gray-500">
 
