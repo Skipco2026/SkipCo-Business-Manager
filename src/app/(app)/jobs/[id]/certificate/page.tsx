@@ -1134,7 +1134,7 @@ export default function DisposalCertificatePage() {
           <button
             type="button"
             onClick={() =>
-              router.push(`/jobs/${job.id}`)
+              router.push("/jobs")
             }
             className="inline-flex w-fit items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50"
           >
@@ -1455,7 +1455,7 @@ export default function DisposalCertificatePage() {
                 <div>
 
                   <label className="mb-1.5 block text-sm font-semibold text-gray-700">
-                    Sign-off Person's Name *
+                    Sign-off Person&apos;s Name *
                   </label>
 
                   <input
@@ -1668,7 +1668,7 @@ export default function DisposalCertificatePage() {
                 <div>
 
                   <label className="mb-1.5 block text-sm font-semibold text-gray-700">
-                    Sign-off Person's Name *
+                    Sign-off Person&apos;s Name *
                   </label>
 
                   <input

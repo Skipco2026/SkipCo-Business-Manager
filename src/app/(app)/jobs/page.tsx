@@ -33,7 +33,7 @@ interface Employee {
 interface Contractor {
   id: string;
   contractor_name: string;
-  status: "Active" | "Inactive";
+  status: string;
 }
 
 interface Invoice {
@@ -77,7 +77,7 @@ interface DisposalCertificate {
   certificate_status: string | null;
 }
 
-const emptyForm = {
+const EMPTY_FORM = {
   customer_id: "",
   job_date: "",
   contractor_id: "",
@@ -90,6 +90,14 @@ const emptyForm = {
   invoice_id: "",
   notes: "",
 };
+
+type JobForm = typeof EMPTY_FORM;
+
+const INPUT_CLASS =
+  "w-full rounded-lg border border-charcoal-300 bg-white px-3 py-2.5 text-sm text-charcoal-900 outline-none transition placeholder:text-charcoal-400 focus:border-charcoal-500 focus:ring-2 focus:ring-charcoal-200";
+
+const TEXTAREA_CLASS =
+  "w-full rounded-lg border border-charcoal-300 bg-white px-3 py-2.5 text-sm text-charcoal-900 outline-none transition placeholder:text-charcoal-400 focus:border-charcoal-500 focus:ring-2 focus:ring-charcoal-200";
 
 export default function JobsPage() {
   const supabase = createClient();
@@ -105,19 +113,21 @@ export default function JobsPage() {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [deletingJobId, setDeletingJobId] = useState<string | null>(null);
 
   const [showForm, setShowForm] = useState(false);
   const [editingJob, setEditingJob] = useState<Job | null>(null);
 
-  const [form, setForm] = useState(emptyForm);
+  const [form, setForm] = useState<JobForm>(EMPTY_FORM);
 
   const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("All");
 
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
   useEffect(() => {
-    loadPageData();
+    void loadPageData();
   }, []);
 
   async function loadPageData() {
@@ -191,28 +201,30 @@ export default function JobsPage() {
         throw new Error(certificatesResult.error.message);
       }
 
-      const loadedJobs = (jobsResult.data ?? []) as Job[];
+      const loadedJobs = ((jobsResult.data ?? []) as Job[]).sort(
+        (a, b) =>
+          new Date(b.created_at).getTime() -
+          new Date(a.created_at).getTime()
+      );
 
-      loadedJobs.sort((a, b) => {
-        const aTime = new Date(a.created_at).getTime();
-        const bTime = new Date(b.created_at).getTime();
+      const certificateMap: Record<string, DisposalCertificate> = {};
 
-        return bTime - aTime;
-      });
+      /*
+       * Certificates are returned newest first.
+       * Only store the first certificate for each job.
+       */
+      for (const certificate of certificatesResult.data ?? []) {
+        if (!certificateMap[certificate.job_id]) {
+          certificateMap[certificate.job_id] =
+            certificate as DisposalCertificate;
+        }
+      }
 
       setJobs(loadedJobs);
       setCustomers((customersResult.data ?? []) as Customer[]);
       setEmployees((employeesResult.data ?? []) as Employee[]);
       setContractors((contractorsResult.data ?? []) as Contractor[]);
       setInvoices((invoicesResult.data ?? []) as Invoice[]);
-
-      const certificateMap: Record<string, DisposalCertificate> = {};
-
-      for (const certificate of certificatesResult.data ?? []) {
-        certificateMap[certificate.job_id] =
-          certificate as DisposalCertificate;
-      }
-
       setCertificates(certificateMap);
     } catch (err) {
       console.error("Error loading jobs:", err);
@@ -227,14 +239,16 @@ export default function JobsPage() {
     }
   }
 
-  function updateField(
-    field: keyof typeof emptyForm,
-    value: string
-  ) {
+  function updateField(field: keyof JobForm, value: string) {
     setForm((current) => ({
       ...current,
       [field]: value,
     }));
+  }
+
+  function clearMessages() {
+    setError("");
+    setSuccess("");
   }
 
   function generateJobNumber() {
@@ -242,26 +256,26 @@ export default function JobsPage() {
   }
 
   function openAddForm() {
+    clearMessages();
+
     setEditingJob(null);
 
     setForm({
-      ...emptyForm,
+      ...EMPTY_FORM,
       job_date: new Date().toISOString().slice(0, 10),
     });
 
-    setError("");
-    setSuccess("");
     setShowForm(true);
   }
 
   function openEditForm(job: Job) {
+    clearMessages();
+
     setEditingJob(job);
 
     setForm({
       customer_id: job.customer_id ?? "",
-      job_date: job.job_date
-        ? job.job_date.slice(0, 10)
-        : "",
+      job_date: job.job_date ? job.job_date.slice(0, 10) : "",
       contractor_id: job.contractor_id ?? "",
       job_type: job.job_type ?? "",
       description: job.description ?? "",
@@ -276,22 +290,21 @@ export default function JobsPage() {
       notes: job.notes ?? "",
     });
 
-    setError("");
-    setSuccess("");
     setShowForm(true);
   }
 
   function closeForm() {
-    if (saving) return;
+    if (saving) {
+      return;
+    }
 
     setShowForm(false);
     setEditingJob(null);
-    setForm(emptyForm);
+    setForm(EMPTY_FORM);
   }
 
   async function saveJob() {
-    setError("");
-    setSuccess("");
+    clearMessages();
 
     if (!form.customer_id) {
       setError("Please select a customer.");
@@ -332,8 +345,6 @@ export default function JobsPage() {
           form.status === "In Progress"
             ? "In Progress"
             : "Pending",
-        completed: false,
-        completed_at: null,
         invoice_id: form.invoice_id || null,
         notes: form.notes.trim() || null,
       };
@@ -351,13 +362,17 @@ export default function JobsPage() {
           throw new Error(updateError.message);
         }
 
-        setSuccess("Job updated successfully.");
+        setSuccess(
+          `${editingJob.job_number} updated successfully.`
+        );
       } else {
         const { error: insertError } = await supabase
           .from("jobs")
           .insert({
             ...jobData,
             job_number: generateJobNumber(),
+            completed: false,
+            completed_at: null,
           });
 
         if (insertError) {
@@ -369,7 +384,7 @@ export default function JobsPage() {
 
       setShowForm(false);
       setEditingJob(null);
-      setForm(emptyForm);
+      setForm(EMPTY_FORM);
 
       await loadPageData();
     } catch (err) {
@@ -392,14 +407,11 @@ export default function JobsPage() {
   function isCertificateCompleted(jobId: string) {
     const certificate = getCertificate(jobId);
 
-    if (!certificate) {
-      return false;
-    }
-
-    return (
-      Boolean(certificate.client_signature) &&
-      Boolean(certificate.facility_signature) &&
-      certificate.certificate_status === "Completed"
+    return Boolean(
+      certificate &&
+        certificate.client_signature &&
+        certificate.facility_signature &&
+        certificate.certificate_status === "Completed"
     );
   }
 
@@ -407,7 +419,7 @@ export default function JobsPage() {
     const certificate = getCertificate(jobId);
 
     if (isCertificateCompleted(jobId)) {
-      return "Certificate Completed";
+      return "Completed";
     }
 
     if (certificate?.facility_signature) {
@@ -422,14 +434,14 @@ export default function JobsPage() {
       return "Awaiting Client";
     }
 
-    return "Certificate Required";
+    return "Required";
   }
 
   function getCertificateDescription(jobId: string) {
     const certificate = getCertificate(jobId);
 
     if (isCertificateCompleted(jobId)) {
-      return "Client and facility signed";
+      return "Client & facility signed";
     }
 
     if (certificate?.facility_signature) {
@@ -437,11 +449,11 @@ export default function JobsPage() {
     }
 
     if (certificate?.client_signature) {
-      return "Waiting for disposal facility";
+      return "Waiting for facility";
     }
 
     if (certificate) {
-      return "Waiting for client collection signature";
+      return "Waiting for client";
     }
 
     return "Create certificate";
@@ -452,8 +464,7 @@ export default function JobsPage() {
   }
 
   async function deleteJob(job: Job) {
-    setError("");
-    setSuccess("");
+    clearMessages();
 
     const certificate = getCertificate(job.id);
 
@@ -465,12 +476,14 @@ export default function JobsPage() {
     }
 
     const confirmed = window.confirm(
-      `Are you sure you want to delete ${job.job_number}? This cannot be undone.`
+      `Are you sure you want to delete ${job.job_number}?\n\nThis action cannot be undone.`
     );
 
     if (!confirmed) {
       return;
     }
+
+    setDeletingJobId(job.id);
 
     try {
       const { error: deleteError } = await supabase
@@ -482,7 +495,9 @@ export default function JobsPage() {
         throw new Error(deleteError.message);
       }
 
-      setSuccess(`${job.job_number} deleted successfully.`);
+      setSuccess(
+        `${job.job_number} deleted successfully.`
+      );
 
       await loadPageData();
     } catch (err) {
@@ -493,6 +508,8 @@ export default function JobsPage() {
           ? err.message
           : "Unable to delete job. Please try again."
       );
+    } finally {
+      setDeletingJobId(null);
     }
   }
 
@@ -514,7 +531,7 @@ export default function JobsPage() {
 
   function getEmployeeName(employeeId: string | null) {
     if (!employeeId) {
-      return "—";
+      return "Unassigned";
     }
 
     const employee = employees.find(
@@ -530,7 +547,7 @@ export default function JobsPage() {
 
   function getContractorName(contractorId: string | null) {
     if (!contractorId) {
-      return "—";
+      return "Unassigned";
     }
 
     const contractor = contractors.find(
@@ -546,7 +563,7 @@ export default function JobsPage() {
 
   function getInvoiceNumber(invoiceId: string | null) {
     if (!invoiceId) {
-      return "—";
+      return "Not linked";
     }
 
     const invoice = invoices.find(
@@ -586,45 +603,46 @@ export default function JobsPage() {
 
   const completedJobs = jobs.filter(
     (job) =>
-      job.completed &&
+      job.completed ||
       isCertificateCompleted(job.id)
+  ).length;
+
+  const certificateRequiredJobs = jobs.filter(
+    (job) =>
+      !getCertificate(job.id) &&
+      !job.completed
   ).length;
 
   const filteredJobs = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
 
-    if (!term) {
-      return jobs;
-    }
-
     return jobs.filter((job) => {
-      const customerName = getCustomerName(
-        job.customer_id
-      );
+      const matchesStatus =
+        statusFilter === "All" ||
+        (statusFilter === "Completed"
+          ? job.completed ||
+            isCertificateCompleted(job.id)
+          : job.status === statusFilter);
 
-      const employeeName = getEmployeeName(
-        job.assigned_employee_id
-      );
+      if (!matchesStatus) {
+        return false;
+      }
 
-      const contractorName = getContractorName(
-        job.contractor_id
-      );
-
-      const invoiceNumber = getInvoiceNumber(
-        job.invoice_id
-      );
+      if (!term) {
+        return true;
+      }
 
       const searchableText = [
         job.job_number,
-        customerName,
+        getCustomerName(job.customer_id),
         job.job_type,
         job.description,
         job.collection_address,
         job.delivery_address,
         job.status,
-        employeeName,
-        contractorName,
-        invoiceNumber,
+        getEmployeeName(job.assigned_employee_id),
+        getContractorName(job.contractor_id),
+        getInvoiceNumber(job.invoice_id),
         job.notes,
         job.job_date,
       ]
@@ -637,10 +655,12 @@ export default function JobsPage() {
   }, [
     jobs,
     searchTerm,
+    statusFilter,
     customers,
     employees,
     contractors,
     invoices,
+    certificates,
   ]);
 
   return (
@@ -674,7 +694,8 @@ export default function JobsPage() {
             <button
               type="button"
               onClick={() => setError("")}
-              className="shrink-0"
+              className="shrink-0 rounded-md p-1 hover:bg-red-100"
+              aria-label="Dismiss error"
             >
               <X className="h-4 w-4" />
             </button>
@@ -688,112 +709,111 @@ export default function JobsPage() {
             <button
               type="button"
               onClick={() => setSuccess("")}
-              className="shrink-0"
+              className="shrink-0 rounded-md p-1 hover:bg-green-100"
+              aria-label="Dismiss success"
             >
               <X className="h-4 w-4" />
             </button>
           </div>
         )}
 
-        {/* COMPACT SUMMARY */}
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <div className="flex items-center gap-3 rounded-lg border border-charcoal-200 bg-white px-4 py-3 shadow-sm">
-            <div className="rounded-md bg-charcoal-100 p-2">
+        {/* SUMMARY CARDS */}
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+          <SummaryCard
+            label="Total Jobs"
+            value={totalJobs}
+            icon={
               <BriefcaseBusiness className="h-4 w-4 text-charcoal-700" />
-            </div>
+            }
+            iconClass="bg-charcoal-100"
+          />
 
-            <div className="min-w-0">
-              <p className="text-xs font-medium text-charcoal-500">
-                Total Jobs
-              </p>
-
-              <p className="text-xl font-bold text-charcoal-900">
-                {totalJobs}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3 rounded-lg border border-charcoal-200 bg-white px-4 py-3 shadow-sm">
-            <div className="rounded-md bg-yellow-50 p-2">
+          <SummaryCard
+            label="Pending"
+            value={pendingJobs}
+            icon={
               <BriefcaseBusiness className="h-4 w-4 text-yellow-700" />
-            </div>
+            }
+            iconClass="bg-yellow-50"
+          />
 
-            <div className="min-w-0">
-              <p className="text-xs font-medium text-charcoal-500">
-                Pending
-              </p>
-
-              <p className="text-xl font-bold text-charcoal-900">
-                {pendingJobs}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3 rounded-lg border border-charcoal-200 bg-white px-4 py-3 shadow-sm">
-            <div className="rounded-md bg-blue-50 p-2">
+          <SummaryCard
+            label="In Progress"
+            value={inProgressJobs}
+            icon={
               <BriefcaseBusiness className="h-4 w-4 text-blue-700" />
-            </div>
+            }
+            iconClass="bg-blue-50"
+          />
 
-            <div className="min-w-0">
-              <p className="text-xs font-medium text-charcoal-500">
-                In Progress
-              </p>
-
-              <p className="text-xl font-bold text-charcoal-900">
-                {inProgressJobs}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3 rounded-lg border border-charcoal-200 bg-white px-4 py-3 shadow-sm">
-            <div className="rounded-md bg-green-50 p-2">
+          <SummaryCard
+            label="Completed"
+            value={completedJobs}
+            icon={
               <Check className="h-4 w-4 text-green-700" />
-            </div>
+            }
+            iconClass="bg-green-50"
+          />
 
-            <div className="min-w-0">
-              <p className="text-xs font-medium text-charcoal-500">
-                Completed
-              </p>
-
-              <p className="text-xl font-bold text-charcoal-900">
-                {completedJobs}
-              </p>
-            </div>
-          </div>
+          <SummaryCard
+            label="Certificates Required"
+            value={certificateRequiredJobs}
+            icon={
+              <FileCheck2 className="h-4 w-4 text-orange-700" />
+            }
+            iconClass="bg-orange-50"
+          />
         </div>
 
         {/* SEARCH */}
         <div className="rounded-xl border border-charcoal-200 bg-white p-4 shadow-sm">
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-charcoal-400" />
+          <div className="flex flex-col gap-3 lg:flex-row">
+            <div className="relative flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-charcoal-400" />
 
-            <input
-              type="text"
-              value={searchTerm}
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(event) =>
+                  setSearchTerm(event.target.value)
+                }
+                placeholder="Search jobs, customers, job numbers, sites..."
+                className="w-full rounded-lg border border-charcoal-300 bg-white py-3 pl-10 pr-10 text-sm text-charcoal-900 outline-none transition placeholder:text-charcoal-400 focus:border-charcoal-500 focus:ring-2 focus:ring-charcoal-200"
+              />
+
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-charcoal-400 transition hover:bg-charcoal-100 hover:text-charcoal-700"
+                  aria-label="Clear search"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+
+            <select
+              value={statusFilter}
               onChange={(event) =>
-                setSearchTerm(event.target.value)
+                setStatusFilter(event.target.value)
               }
-              placeholder="Search jobs, customers, job numbers, sites..."
-              className="w-full rounded-lg border border-charcoal-300 bg-white py-3 pl-10 pr-10 text-sm text-charcoal-900 outline-none transition placeholder:text-charcoal-400 focus:border-charcoal-500 focus:ring-2 focus:ring-charcoal-200"
-            />
-
-            {searchTerm && (
-              <button
-                type="button"
-                onClick={() => setSearchTerm("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-charcoal-400 transition hover:bg-charcoal-100 hover:text-charcoal-700"
-                aria-label="Clear search"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            )}
+              className="rounded-lg border border-charcoal-300 bg-white px-3 py-3 text-sm text-charcoal-700 outline-none focus:border-charcoal-500 focus:ring-2 focus:ring-charcoal-200 lg:w-48"
+            >
+              <option value="All">All Statuses</option>
+              <option value="Pending">Pending</option>
+              <option value="In Progress">
+                In Progress
+              </option>
+              <option value="Completed">Completed</option>
+            </select>
           </div>
 
-          {searchTerm && (
-            <p className="mt-2 text-xs text-charcoal-500">
+          {(searchTerm || statusFilter !== "All") && (
+            <div className="mt-3 text-xs text-charcoal-500">
               Showing {filteredJobs.length} of{" "}
               {jobs.length} jobs
-            </p>
+            </div>
           )}
         </div>
 
@@ -816,19 +836,16 @@ export default function JobsPage() {
               <button
                 type="button"
                 onClick={closeForm}
-                className="rounded-lg p-2 text-charcoal-500 transition hover:bg-charcoal-100 hover:text-charcoal-900"
+                disabled={saving}
+                className="rounded-lg p-2 text-charcoal-500 transition hover:bg-charcoal-100 hover:text-charcoal-900 disabled:opacity-50"
+                aria-label="Close form"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
             <div className="grid gap-5 p-6 md:grid-cols-2">
-              {/* CUSTOMER */}
-              <div>
-                <label className="mb-2 block text-sm font-medium text-charcoal-700">
-                  Customer *
-                </label>
-
+              <FormField label="Customer *">
                 <select
                   value={form.customer_id}
                   onChange={(event) =>
@@ -837,7 +854,7 @@ export default function JobsPage() {
                       event.target.value
                     )
                   }
-                  className="w-full rounded-lg border border-charcoal-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-charcoal-500 focus:ring-2 focus:ring-charcoal-200"
+                  className={INPUT_CLASS}
                 >
                   <option value="">
                     Select customer
@@ -854,14 +871,9 @@ export default function JobsPage() {
                     </option>
                   ))}
                 </select>
-              </div>
+              </FormField>
 
-              {/* JOB DATE */}
-              <div>
-                <label className="mb-2 block text-sm font-medium text-charcoal-700">
-                  Job Date *
-                </label>
-
+              <FormField label="Job Date *">
                 <input
                   type="date"
                   value={form.job_date}
@@ -871,16 +883,11 @@ export default function JobsPage() {
                       event.target.value
                     )
                   }
-                  className="w-full rounded-lg border border-charcoal-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-charcoal-500 focus:ring-2 focus:ring-charcoal-200"
+                  className={INPUT_CLASS}
                 />
-              </div>
+              </FormField>
 
-              {/* JOB TYPE */}
-              <div>
-                <label className="mb-2 block text-sm font-medium text-charcoal-700">
-                  Job Type
-                </label>
-
+              <FormField label="Job Type">
                 <input
                   type="text"
                   value={form.job_type}
@@ -891,16 +898,11 @@ export default function JobsPage() {
                     )
                   }
                   placeholder="e.g. Skip Collection"
-                  className="w-full rounded-lg border border-charcoal-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-charcoal-500 focus:ring-2 focus:ring-charcoal-200"
+                  className={INPUT_CLASS}
                 />
-              </div>
+              </FormField>
 
-              {/* STATUS */}
-              <div>
-                <label className="mb-2 block text-sm font-medium text-charcoal-700">
-                  Status
-                </label>
-
+              <FormField label="Status">
                 <select
                   value={form.status}
                   onChange={(event) =>
@@ -909,7 +911,7 @@ export default function JobsPage() {
                       event.target.value
                     )
                   }
-                  className="w-full rounded-lg border border-charcoal-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-charcoal-500 focus:ring-2 focus:ring-charcoal-200"
+                  className={INPUT_CLASS}
                 >
                   <option value="Pending">
                     Pending
@@ -919,14 +921,9 @@ export default function JobsPage() {
                     In Progress
                   </option>
                 </select>
-              </div>
+              </FormField>
 
-              {/* EMPLOYEE */}
-              <div>
-                <label className="mb-2 block text-sm font-medium text-charcoal-700">
-                  Assigned Employee
-                </label>
-
+              <FormField label="Assigned Employee">
                 <select
                   value={form.assigned_employee_id}
                   onChange={(event) =>
@@ -935,7 +932,7 @@ export default function JobsPage() {
                       event.target.value
                     )
                   }
-                  className="w-full rounded-lg border border-charcoal-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-charcoal-500 focus:ring-2 focus:ring-charcoal-200"
+                  className={INPUT_CLASS}
                 >
                   <option value="">
                     No employee assigned
@@ -947,21 +944,16 @@ export default function JobsPage() {
                       value={employee.id}
                     >
                       {employee.first_name}{" "}
-                      {employee.last_name}{" "}
+                      {employee.last_name}
                       {employee.employee_number
-                        ? `(${employee.employee_number})`
+                        ? ` (${employee.employee_number})`
                         : ""}
                     </option>
                   ))}
                 </select>
-              </div>
+              </FormField>
 
-              {/* CONTRACTOR */}
-              <div>
-                <label className="mb-2 block text-sm font-medium text-charcoal-700">
-                  Contractor
-                </label>
-
+              <FormField label="Contractor">
                 <select
                   value={form.contractor_id}
                   onChange={(event) =>
@@ -970,7 +962,7 @@ export default function JobsPage() {
                       event.target.value
                     )
                   }
-                  className="w-full rounded-lg border border-charcoal-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-charcoal-500 focus:ring-2 focus:ring-charcoal-200"
+                  className={INPUT_CLASS}
                 >
                   <option value="">
                     No contractor assigned
@@ -985,14 +977,9 @@ export default function JobsPage() {
                     </option>
                   ))}
                 </select>
-              </div>
+              </FormField>
 
-              {/* INVOICE */}
-              <div>
-                <label className="mb-2 block text-sm font-medium text-charcoal-700">
-                  Invoice
-                </label>
-
+              <FormField label="Invoice">
                 <select
                   value={form.invoice_id}
                   onChange={(event) =>
@@ -1001,7 +988,7 @@ export default function JobsPage() {
                       event.target.value
                     )
                   }
-                  className="w-full rounded-lg border border-charcoal-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-charcoal-500 focus:ring-2 focus:ring-charcoal-200"
+                  className={INPUT_CLASS}
                 >
                   <option value="">
                     No invoice linked
@@ -1023,14 +1010,9 @@ export default function JobsPage() {
                       </option>
                     ))}
                 </select>
-              </div>
+              </FormField>
 
-              {/* COLLECTION ADDRESS */}
-              <div>
-                <label className="mb-2 block text-sm font-medium text-charcoal-700">
-                  Collection Address
-                </label>
-
+              <FormField label="Collection Address">
                 <textarea
                   value={form.collection_address}
                   onChange={(event) =>
@@ -1041,16 +1023,11 @@ export default function JobsPage() {
                   }
                   rows={3}
                   placeholder="Where the waste will be collected"
-                  className="w-full rounded-lg border border-charcoal-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-charcoal-500 focus:ring-2 focus:ring-charcoal-200"
+                  className={TEXTAREA_CLASS}
                 />
-              </div>
+              </FormField>
 
-              {/* DELIVERY ADDRESS */}
-              <div>
-                <label className="mb-2 block text-sm font-medium text-charcoal-700">
-                  Delivery / Disposal Address
-                </label>
-
+              <FormField label="Delivery / Disposal Address">
                 <textarea
                   value={form.delivery_address}
                   onChange={(event) =>
@@ -1061,16 +1038,14 @@ export default function JobsPage() {
                   }
                   rows={3}
                   placeholder="Where the waste will be delivered"
-                  className="w-full rounded-lg border border-charcoal-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-charcoal-500 focus:ring-2 focus:ring-charcoal-200"
+                  className={TEXTAREA_CLASS}
                 />
-              </div>
+              </FormField>
 
-              {/* DESCRIPTION */}
-              <div className="md:col-span-2">
-                <label className="mb-2 block text-sm font-medium text-charcoal-700">
-                  Description
-                </label>
-
+              <FormField
+                label="Description"
+                className="md:col-span-2"
+              >
                 <textarea
                   value={form.description}
                   onChange={(event) =>
@@ -1081,16 +1056,14 @@ export default function JobsPage() {
                   }
                   rows={3}
                   placeholder="Describe the job"
-                  className="w-full rounded-lg border border-charcoal-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-charcoal-500 focus:ring-2 focus:ring-charcoal-200"
+                  className={TEXTAREA_CLASS}
                 />
-              </div>
+              </FormField>
 
-              {/* NOTES */}
-              <div className="md:col-span-2">
-                <label className="mb-2 block text-sm font-medium text-charcoal-700">
-                  Notes
-                </label>
-
+              <FormField
+                label="Internal Notes"
+                className="md:col-span-2"
+              >
                 <textarea
                   value={form.notes}
                   onChange={(event) =>
@@ -1101,9 +1074,9 @@ export default function JobsPage() {
                   }
                   rows={3}
                   placeholder="Internal notes"
-                  className="w-full rounded-lg border border-charcoal-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-charcoal-500 focus:ring-2 focus:ring-charcoal-200"
+                  className={TEXTAREA_CLASS}
                 />
-              </div>
+              </FormField>
             </div>
 
             <div className="flex flex-col-reverse gap-3 border-t border-charcoal-200 px-6 py-4 sm:flex-row sm:justify-end">
@@ -1136,17 +1109,17 @@ export default function JobsPage() {
           </div>
         )}
 
-        {/* JOBS LIST */}
-        <div className="rounded-xl border border-charcoal-200 bg-white shadow-sm">
+        {/* COMPACT JOB LIST */}
+        <div className="overflow-hidden rounded-xl border border-charcoal-200 bg-white shadow-sm">
           <div className="border-b border-charcoal-200 px-6 py-4">
             <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h2 className="text-lg font-semibold text-charcoal-900">
-                  All Jobs
+                  Jobs
                 </h2>
 
                 <p className="text-sm text-charcoal-500">
-                  Newest jobs first.
+                  Select a job to manage its details and certificate.
                 </p>
               </div>
 
@@ -1162,320 +1135,498 @@ export default function JobsPage() {
           </div>
 
           {loading ? (
-            <div className="flex min-h-[250px] items-center justify-center">
-              <div className="flex items-center gap-2 text-sm text-charcoal-500">
-                <Loader2 className="h-5 w-5 animate-spin" />
-                Loading jobs...
-              </div>
-            </div>
+            <LoadingState />
           ) : jobs.length === 0 ? (
-            <div className="flex min-h-[250px] flex-col items-center justify-center px-6 text-center">
-              <div className="rounded-full bg-charcoal-100 p-4">
+            <EmptyState
+              icon={
                 <BriefcaseBusiness className="h-7 w-7 text-charcoal-600" />
-              </div>
-
-              <h3 className="mt-4 text-lg font-semibold text-charcoal-900">
-                No jobs yet
-              </h3>
-
-              <p className="mt-1 max-w-md text-sm text-charcoal-500">
-                Create your first job to start managing
-                collections and disposal certificates.
-              </p>
-
-              <button
-                type="button"
-                onClick={openAddForm}
-                className="mt-5 inline-flex items-center gap-2 rounded-lg bg-charcoal-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-charcoal-800"
-              >
-                <Plus className="h-4 w-4" />
-                Add Job
-              </button>
-            </div>
+              }
+              title="No jobs yet"
+              description="Create your first job to start managing collections and disposal certificates."
+              buttonLabel="Add Job"
+              onClick={openAddForm}
+            />
           ) : filteredJobs.length === 0 ? (
-            <div className="flex min-h-[250px] flex-col items-center justify-center px-6 text-center">
-              <div className="rounded-full bg-charcoal-100 p-4">
+            <EmptyState
+              icon={
                 <Search className="h-7 w-7 text-charcoal-600" />
+              }
+              title="No jobs found"
+              description="Try changing your search or status filter."
+              buttonLabel="Clear Filters"
+              onClick={() => {
+                setSearchTerm("");
+                setStatusFilter("All");
+              }}
+            />
+          ) : (
+            <>
+              {/* DESKTOP TABLE */}
+              <div className="hidden overflow-x-auto md:block">
+                <table className="w-full min-w-[900px]">
+                  <thead>
+                    <tr className="border-b border-charcoal-200 bg-charcoal-50 text-left">
+                      <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-charcoal-500">
+                        Job
+                      </th>
+
+                      <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-charcoal-500">
+                        Customer
+                      </th>
+
+                      <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-charcoal-500">
+                        Collection Site
+                      </th>
+
+                      <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-charcoal-500">
+                        Job Type
+                      </th>
+
+                      <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-charcoal-500">
+                        Date
+                      </th>
+
+                      <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-charcoal-500">
+                        Status
+                      </th>
+
+                      <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-charcoal-500">
+                        Certificate
+                      </th>
+
+                      <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-charcoal-500">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+
+                  <tbody className="divide-y divide-charcoal-100">
+                    {filteredJobs.map((job) => {
+                      const certificate =
+                        getCertificate(job.id);
+
+                      const certificateCompleted =
+                        isCertificateCompleted(job.id);
+
+                      const deleting =
+                        deletingJobId === job.id;
+
+                      return (
+                        <tr
+                          key={job.id}
+                          className="transition hover:bg-charcoal-50"
+                        >
+                          {/* JOB */}
+                          <td className="whitespace-nowrap px-5 py-4">
+                            <div className="font-semibold text-charcoal-900">
+                              {job.job_number}
+                            </div>
+
+                            {job.completed && (
+                              <div className="mt-1 text-xs font-medium text-green-700">
+                                Job completed
+                              </div>
+                            )}
+                          </td>
+
+                          {/* CUSTOMER */}
+                          <td className="px-5 py-4">
+                            <div className="max-w-[190px] truncate font-medium text-charcoal-900">
+                              {getCustomerName(
+                                job.customer_id
+                              )}
+                            </div>
+                          </td>
+
+                          {/* COLLECTION SITE */}
+                          <td className="px-5 py-4">
+                            <div
+                              className="max-w-[260px] truncate text-sm text-charcoal-700"
+                              title={
+                                job.collection_address ||
+                                ""
+                              }
+                            >
+                              {job.collection_address ||
+                                "Not specified"}
+                            </div>
+                          </td>
+
+                          {/* JOB TYPE */}
+                          <td className="px-5 py-4">
+                            <span className="text-sm text-charcoal-700">
+                              {job.job_type || "—"}
+                            </span>
+                          </td>
+
+                          {/* DATE */}
+                          <td className="whitespace-nowrap px-5 py-4">
+                            <span className="text-sm text-charcoal-700">
+                              {formatDate(job.job_date)}
+                            </span>
+                          </td>
+
+                          {/* STATUS */}
+                          <td className="px-5 py-4">
+                            <StatusBadge
+                              status={job.status}
+                            />
+                          </td>
+
+                          {/* CERTIFICATE */}
+                          <td className="px-5 py-4">
+                            <CertificateBadge
+                              completed={
+                                certificateCompleted
+                              }
+                              certificate={
+                                certificate
+                              }
+                              label={getCertificateLabel(
+                                job.id
+                              )}
+                            />
+                          </td>
+
+                          {/* ACTIONS */}
+                          <td className="px-5 py-4">
+                            <div className="flex justify-end gap-1">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  openCertificate(job)
+                                }
+                                title={
+                                  certificate
+                                    ? "Open certificate"
+                                    : "Create certificate"
+                                }
+                                className="rounded-lg p-2 text-charcoal-500 transition hover:bg-charcoal-100 hover:text-charcoal-900"
+                              >
+                                <FileCheck2 className="h-4 w-4" />
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  openEditForm(job)
+                                }
+                                title="Edit job"
+                                className="rounded-lg p-2 text-charcoal-500 transition hover:bg-charcoal-100 hover:text-charcoal-900"
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  deleteJob(job)
+                                }
+                                disabled={
+                                  Boolean(certificate) ||
+                                  deleting
+                                }
+                                title={
+                                  certificate
+                                    ? "Jobs with certificates cannot be deleted"
+                                    : "Delete job"
+                                }
+                                className="rounded-lg p-2 text-red-500 transition hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-30"
+                              >
+                                {deleting ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Trash2 className="h-4 w-4" />
+                                )}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
 
-              <h3 className="mt-4 text-lg font-semibold text-charcoal-900">
-                No jobs found
-              </h3>
+              {/* MOBILE LIST */}
+              <div className="divide-y divide-charcoal-200 md:hidden">
+                {filteredJobs.map((job) => {
+                  const certificate =
+                    getCertificate(job.id);
 
-              <p className="mt-1 max-w-md text-sm text-charcoal-500">
-                No jobs match{" "}
-                <span className="font-medium text-charcoal-700">
-                  "{searchTerm}"
-                </span>
-                .
-              </p>
+                  const certificateCompleted =
+                    isCertificateCompleted(job.id);
 
-              <button
-                type="button"
-                onClick={() => setSearchTerm("")}
-                className="mt-5 rounded-lg border border-charcoal-300 px-4 py-2.5 text-sm font-medium text-charcoal-700 transition hover:bg-charcoal-50"
-              >
-                Clear Search
-              </button>
-            </div>
-          ) : (
-            <div className="divide-y divide-charcoal-200">
-              {filteredJobs.map((job) => {
-                const certificate =
-                  getCertificate(job.id);
+                  const deleting =
+                    deletingJobId === job.id;
 
-                const certificateCompleted =
-                  isCertificateCompleted(job.id);
-
-                return (
-                  <div
-                    key={job.id}
-                    className="p-6 transition hover:bg-charcoal-50"
-                  >
-                    <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-                      {/* JOB INFORMATION */}
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-base font-bold text-charcoal-900">
-                            {job.job_number}
-                          </span>
-
-                          <span
-                            className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-                              job.status === "Pending"
-                                ? "bg-yellow-100 text-yellow-800"
-                                : job.status === "In Progress"
-                                  ? "bg-blue-100 text-blue-800"
-                                  : "bg-charcoal-100 text-charcoal-700"
-                            }`}
-                          >
-                            {job.status}
-                          </span>
-
-                          {job.completed && (
-                            <span className="rounded-full bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-800">
-                              Completed
+                  return (
+                    <div
+                      key={job.id}
+                      className="p-4"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-bold text-charcoal-900">
+                              {job.job_number}
                             </span>
-                          )}
+
+                            <StatusBadge
+                              status={job.status}
+                            />
+                          </div>
+
+                          <h3 className="mt-1 truncate font-semibold text-charcoal-900">
+                            {getCustomerName(
+                              job.customer_id
+                            )}
+                          </h3>
                         </div>
 
-                        <h3 className="mt-2 text-lg font-semibold text-charcoal-900">
-                          {getCustomerName(
-                            job.customer_id
-                          )}
-                        </h3>
-
-                        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                          <div>
-                            <p className="text-xs font-medium uppercase tracking-wide text-charcoal-400">
-                              Job Date
-                            </p>
-
-                            <p className="mt-1 text-sm text-charcoal-700">
-                              {formatDate(job.job_date)}
-                            </p>
-                          </div>
-
-                          <div>
-                            <p className="text-xs font-medium uppercase tracking-wide text-charcoal-400">
-                              Job Type
-                            </p>
-
-                            <p className="mt-1 text-sm text-charcoal-700">
-                              {job.job_type || "—"}
-                            </p>
-                          </div>
-
-                          <div>
-                            <p className="text-xs font-medium uppercase tracking-wide text-charcoal-400">
-                              Employee
-                            </p>
-
-                            <p className="mt-1 text-sm text-charcoal-700">
-                              {getEmployeeName(
-                                job.assigned_employee_id
-                              )}
-                            </p>
-                          </div>
-
-                          <div>
-                            <p className="text-xs font-medium uppercase tracking-wide text-charcoal-400">
-                              Contractor
-                            </p>
-
-                            <p className="mt-1 text-sm text-charcoal-700">
-                              {getContractorName(
-                                job.contractor_id
-                              )}
-                            </p>
-                          </div>
-                        </div>
-
-                        {(job.collection_address ||
-                          job.delivery_address) && (
-                          <div className="mt-5 grid gap-4 md:grid-cols-2">
-                            {job.collection_address && (
-                              <div className="rounded-lg bg-charcoal-50 p-4">
-                                <p className="text-xs font-semibold uppercase tracking-wide text-charcoal-400">
-                                  Collection Address
-                                </p>
-
-                                <p className="mt-1 whitespace-pre-line text-sm text-charcoal-700">
-                                  {job.collection_address}
-                                </p>
-                              </div>
-                            )}
-
-                            {job.delivery_address && (
-                              <div className="rounded-lg bg-charcoal-50 p-4">
-                                <p className="text-xs font-semibold uppercase tracking-wide text-charcoal-400">
-                                  Delivery / Disposal
-                                </p>
-
-                                <p className="mt-1 whitespace-pre-line text-sm text-charcoal-700">
-                                  {job.delivery_address}
-                                </p>
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        {job.description && (
-                          <div className="mt-4">
-                            <p className="text-xs font-medium uppercase tracking-wide text-charcoal-400">
-                              Description
-                            </p>
-
-                            <p className="mt-1 whitespace-pre-line text-sm text-charcoal-700">
-                              {job.description}
-                            </p>
-                          </div>
-                        )}
-
-                        {job.invoice_id && (
-                          <div className="mt-4">
-                            <p className="text-xs font-medium uppercase tracking-wide text-charcoal-400">
-                              Invoice
-                            </p>
-
-                            <p className="mt-1 text-sm text-charcoal-700">
-                              {getInvoiceNumber(
-                                job.invoice_id
-                              )}
-                            </p>
-                          </div>
-                        )}
+                        <span className="shrink-0 text-xs text-charcoal-500">
+                          {formatDate(job.job_date)}
+                        </span>
                       </div>
 
-                      {/* ACTIONS */}
-                      <div className="w-full xl:w-80">
-                        <div
-                          className={`rounded-xl border p-4 ${
+                      <div className="mt-3">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-charcoal-400">
+                          Collection Site
+                        </p>
+
+                        <p className="mt-1 line-clamp-2 text-sm text-charcoal-700">
+                          {job.collection_address ||
+                            "Not specified"}
+                        </p>
+                      </div>
+
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        {job.job_type && (
+                          <span className="rounded-md bg-charcoal-100 px-2.5 py-1 text-xs font-medium text-charcoal-700">
+                            {job.job_type}
+                          </span>
+                        )}
+
+                        <CertificateBadge
+                          completed={
                             certificateCompleted
-                              ? "border-green-200 bg-green-50"
-                              : certificate
-                                ? "border-yellow-200 bg-yellow-50"
-                                : "border-charcoal-200 bg-charcoal-50"
-                          }`}
+                          }
+                          certificate={certificate}
+                          label={getCertificateLabel(
+                            job.id
+                          )}
+                        />
+                      </div>
+
+                      <div className="mt-4 flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            openCertificate(job)
+                          }
+                          className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-charcoal-900 px-3 py-2.5 text-sm font-semibold text-white"
                         >
-                          <div className="flex items-start gap-3">
-                            <div
-                              className={`rounded-lg p-2 ${
-                                certificateCompleted
-                                  ? "bg-green-100"
-                                  : certificate
-                                    ? "bg-yellow-100"
-                                    : "bg-white"
-                              }`}
-                            >
-                              <FileCheck2
-                                className={`h-5 w-5 ${
-                                  certificateCompleted
-                                    ? "text-green-700"
-                                    : certificate
-                                      ? "text-yellow-700"
-                                      : "text-charcoal-600"
-                                }`}
-                              />
-                            </div>
+                          <FileCheck2 className="h-4 w-4" />
 
-                            <div className="min-w-0 flex-1">
-                              <p className="text-sm font-semibold text-charcoal-900">
-                                {getCertificateLabel(
-                                  job.id
-                                )}
-                              </p>
+                          {certificate
+                            ? "Certificate"
+                            : "Create Certificate"}
+                        </button>
 
-                              <p className="mt-1 text-xs text-charcoal-600">
-                                {getCertificateDescription(
-                                  job.id
-                                )}
-                              </p>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            openEditForm(job)
+                          }
+                          className="rounded-lg border border-charcoal-300 px-3 py-2.5 text-charcoal-700"
+                          title="Edit job"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </button>
 
-                              {certificate?.reference_number && (
-                                <p className="mt-2 text-xs font-medium text-charcoal-500">
-                                  Ref:{" "}
-                                  {
-                                    certificate.reference_number
-                                  }
-                                </p>
-                              )}
-                            </div>
-                          </div>
-
-                          <button
-                            type="button"
-                            onClick={() =>
-                              openCertificate(job)
-                            }
-                            className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-charcoal-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-charcoal-800"
-                          >
-                            <FileCheck2 className="h-4 w-4" />
-
-                            {certificate
-                              ? "Open Certificate"
-                              : "Create Certificate"}
-                          </button>
-                        </div>
-
-                        <div className="mt-3 flex gap-2">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              openEditForm(job)
-                            }
-                            className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-charcoal-300 bg-white px-3 py-2.5 text-sm font-medium text-charcoal-700 transition hover:bg-charcoal-50"
-                          >
-                            <Pencil className="h-4 w-4" />
-                            Edit
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() =>
-                              deleteJob(job)
-                            }
-                            disabled={Boolean(certificate)}
-                            title={
-                              certificate
-                                ? "Jobs with certificates cannot be deleted"
-                                : "Delete job"
-                            }
-                            className="inline-flex items-center justify-center gap-2 rounded-lg border border-red-200 bg-white px-3 py-2.5 text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
-                          >
+                        <button
+                          type="button"
+                          onClick={() =>
+                            deleteJob(job)
+                          }
+                          disabled={
+                            Boolean(certificate) ||
+                            deleting
+                          }
+                          className="rounded-lg border border-red-200 px-3 py-2.5 text-red-600 disabled:cursor-not-allowed disabled:opacity-30"
+                          title="Delete job"
+                        >
+                          {deleting ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
                             <Trash2 className="h-4 w-4" />
-                            Delete
-                          </button>
-                        </div>
+                          )}
+                        </button>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            </>
           )}
         </div>
       </div>
     </DashboardShell>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* COMPONENTS                                                                */
+/* -------------------------------------------------------------------------- */
+
+function SummaryCard({
+  label,
+  value,
+  icon,
+  iconClass,
+}: {
+  label: string;
+  value: number;
+  icon: React.ReactNode;
+  iconClass: string;
+}) {
+  return (
+    <div className="flex items-center gap-3 rounded-lg border border-charcoal-200 bg-white px-4 py-3 shadow-sm">
+      <div className={`rounded-md p-2 ${iconClass}`}>
+        {icon}
+      </div>
+
+      <div className="min-w-0">
+        <p className="text-xs font-medium text-charcoal-500">
+          {label}
+        </p>
+
+        <p className="text-xl font-bold text-charcoal-900">
+          {value}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function FormField({
+  label,
+  children,
+  className = "",
+}: {
+  label: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={className}>
+      <label className="mb-2 block text-sm font-medium text-charcoal-700">
+        {label}
+      </label>
+
+      {children}
+    </div>
+  );
+}
+
+function StatusBadge({
+  status,
+}: {
+  status: string;
+}) {
+  const className =
+    status === "Pending"
+      ? "bg-yellow-100 text-yellow-800"
+      : status === "In Progress"
+        ? "bg-blue-100 text-blue-800"
+        : status === "Completed"
+          ? "bg-green-100 text-green-800"
+          : "bg-charcoal-100 text-charcoal-700";
+
+  return (
+    <span
+      className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold ${className}`}
+    >
+      {status}
+    </span>
+  );
+}
+
+function CertificateBadge({
+  completed,
+  certificate,
+  label,
+}: {
+  completed: boolean;
+  certificate: DisposalCertificate | null;
+  label: string;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <span
+        className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold ${
+          completed
+            ? "bg-green-100 text-green-800"
+            : certificate
+              ? "bg-yellow-100 text-yellow-800"
+              : "bg-orange-100 text-orange-800"
+        }`}
+      >
+        {completed && (
+          <Check className="h-3 w-3" />
+        )}
+
+        <span>{label}</span>
+      </span>
+    </div>
+  );
+}
+
+function LoadingState() {
+  return (
+    <div className="flex min-h-[250px] items-center justify-center">
+      <div className="flex items-center gap-2 text-sm text-charcoal-500">
+        <Loader2 className="h-5 w-5 animate-spin" />
+        Loading jobs...
+      </div>
+    </div>
+  );
+}
+
+function EmptyState({
+  icon,
+  title,
+  description,
+  buttonLabel,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  buttonLabel: string;
+  onClick: () => void;
+}) {
+  return (
+    <div className="flex min-h-[250px] flex-col items-center justify-center px-6 text-center">
+      <div className="rounded-full bg-charcoal-100 p-4">
+        {icon}
+      </div>
+
+      <h3 className="mt-4 text-lg font-semibold text-charcoal-900">
+        {title}
+      </h3>
+
+      <p className="mt-1 max-w-md text-sm text-charcoal-500">
+        {description}
+      </p>
+
+      <button
+        type="button"
+        onClick={onClick}
+        className="mt-5 rounded-lg border border-charcoal-300 px-4 py-2.5 text-sm font-medium text-charcoal-700 transition hover:bg-charcoal-50"
+      >
+        {buttonLabel}
+      </button>
+    </div>
   );
 }
