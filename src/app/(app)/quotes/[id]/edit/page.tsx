@@ -44,6 +44,19 @@ type QuoteItem = {
   total: number | null;
 };
 
+type Product = {
+  id: string;
+  product_code: string | null;
+  product_name: string | null;
+  description: string | null;
+  category: string | null;
+  type: string | null;
+  unit: string | null;
+  selling_price: number | null;
+  vat_rate: number | null;
+  status: string | null;
+};
+
 type EditableItem = {
   id?: string;
   description: string;
@@ -59,12 +72,16 @@ export default function EditQuotePage() {
 
   const [quote, setQuote] = useState<Quote | null>(null);
   const [items, setItems] = useState<EditableItem[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
 
   const [quoteDate, setQuoteDate] = useState("");
   const [validUntil, setValidUntil] = useState("");
   const [site, setSite] = useState("");
   const [status, setStatus] = useState("Draft");
   const [notes, setNotes] = useState("");
+
+  const [vatEnabled, setVatEnabled] = useState(false);
+  const [vatRate, setVatRate] = useState(15);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -116,9 +133,30 @@ export default function EditQuotePage() {
           throw itemError;
         }
 
+        const { data: productData, error: productError } = await supabase
+          .from("products")
+          .select(`
+            id,
+            product_code,
+            product_name,
+            description,
+            category,
+            type,
+            unit,
+            selling_price,
+            vat_rate,
+            status
+          `)
+          .order("product_name", { ascending: true });
+
+        if (productError) {
+          throw productError;
+        }
+
         const loadedQuote = quoteData as Quote;
 
         setQuote(loadedQuote);
+        setProducts((productData ?? []) as Product[]);
 
         setQuoteDate(
           loadedQuote.quote_date
@@ -135,6 +173,9 @@ export default function EditQuotePage() {
         setSite(loadedQuote.site ?? "");
         setStatus(loadedQuote.status ?? "Draft");
         setNotes(loadedQuote.notes ?? "");
+
+        setVatEnabled(loadedQuote.vat_enabled ?? false);
+        setVatRate(Number(loadedQuote.vat_rate ?? 15));
 
         const loadedItems = (itemData ?? []) as QuoteItem[];
 
@@ -176,6 +217,33 @@ export default function EditQuotePage() {
         return {
           ...item,
           [field]: value,
+        };
+      })
+    );
+  };
+
+  const selectProduct = (index: number, productId: string) => {
+    const product = products.find((item) => item.id === productId);
+
+    if (!product) {
+      return;
+    }
+
+    const productName =
+      product.product_name?.trim() ||
+      product.description?.trim() ||
+      "";
+
+    setItems((currentItems) =>
+      currentItems.map((item, itemIndex) => {
+        if (itemIndex !== index) {
+          return item;
+        }
+
+        return {
+          ...item,
+          description: productName,
+          unit_price: Number(product.selling_price ?? 0),
         };
       })
     );
@@ -245,9 +313,6 @@ export default function EditQuotePage() {
     return sum + calculateItemTotal(item);
   }, 0);
 
-  const vatEnabled = quote?.vat_enabled ?? false;
-  const vatRate = Number(quote?.vat_rate ?? 15);
-
   const vatAmount = vatEnabled
     ? subtotal * (vatRate / 100)
     : 0;
@@ -306,16 +371,14 @@ export default function EditQuotePage() {
         throw new Error("Please enter a valid until date.");
       }
 
-      /*
-       * IMPORTANT:
-       * A quote is allowed to have zero items.
-       * We therefore DO NOT require items.length > 0 here.
-       */
+      if (vatEnabled && vatRate < 0) {
+        throw new Error("VAT rate cannot be negative.");
+      }
 
       for (const item of items) {
         if (!item.description.trim()) {
           throw new Error(
-            "Every quote item needs a description."
+            "Every quote item needs a product or service."
           );
         }
 
@@ -334,11 +397,6 @@ export default function EditQuotePage() {
 
       const supabase = createClient();
 
-      /*
-       * SAVE THE MAIN QUOTE
-       *
-       * This includes the Site Section.
-       */
       const { error: quoteError } = await supabase
         .from("quotes")
         .update({
@@ -347,6 +405,8 @@ export default function EditQuotePage() {
           site: site.trim() || null,
           subtotal,
           total,
+          vat_enabled: vatEnabled,
+          vat_rate: vatEnabled ? vatRate : 0,
           status,
           notes: notes.trim() || null,
           updated_at: new Date().toISOString(),
@@ -358,11 +418,6 @@ export default function EditQuotePage() {
         throw quoteError;
       }
 
-      /*
-       * DELETE OLD ITEMS
-       *
-       * This is safe even when the quote has no items.
-       */
       const { error: deleteError } = await supabase
         .from("quote_items")
         .delete()
@@ -377,11 +432,6 @@ export default function EditQuotePage() {
         throw deleteError;
       }
 
-      /*
-       * INSERT ITEMS ONLY IF THERE ARE ITEMS.
-       *
-       * If there are zero items, we simply skip the insert.
-       */
       if (items.length > 0) {
         const itemsToInsert = items.map((item) => {
           const quantity = Number(item.quantity || 0);
@@ -418,11 +468,6 @@ export default function EditQuotePage() {
       console.error("FULL SAVE ERROR:", err);
 
       const errorMessage = getErrorMessage(err);
-
-      console.error(
-        "SAVE ERROR MESSAGE:",
-        errorMessage
-      );
 
       setError(errorMessage);
     } finally {
@@ -696,8 +741,7 @@ export default function EditQuotePage() {
                 </h2>
 
                 <p className="mt-1 text-sm text-charcoal-500">
-                  Edit the services or products included in this
-                  quote.
+                  Select products or services from your Products & Services list.
                 </p>
               </div>
 
@@ -720,26 +764,49 @@ export default function EditQuotePage() {
                   <div className="grid gap-4 md:grid-cols-[1fr_120px_160px_40px] md:items-end">
                     <div>
                       <label
-                        htmlFor={`description-${index}`}
+                        htmlFor={`product-${index}`}
                         className="mb-1 block text-xs font-medium uppercase tracking-wide text-charcoal-500"
                       >
-                        Description
+                        Product / Service
                       </label>
 
-                      <input
-                        id={`description-${index}`}
-                        type="text"
-                        value={item.description}
+                      <select
+                        id={`product-${index}`}
+                        value=""
                         onChange={(event) =>
-                          updateItem(
-                            index,
-                            "description",
-                            event.target.value
-                          )
+                          selectProduct(index, event.target.value)
                         }
-                        placeholder="Description"
                         className="w-full rounded-lg border border-charcoal-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-charcoal-500"
-                      />
+                      >
+                        <option value="">
+                          {item.description
+                            ? "Change product / service..."
+                            : "Select product / service"}
+                        </option>
+
+                        {products.map((product) => (
+                          <option
+                            key={product.id}
+                            value={product.id}
+                          >
+                            {product.product_name ||
+                              product.description ||
+                              "Unnamed Product"}
+                            {product.unit
+                              ? ` — ${product.unit}`
+                              : ""}
+                          </option>
+                        ))}
+                      </select>
+
+                      {item.description && (
+                        <p className="mt-2 text-sm text-charcoal-700">
+                          <span className="font-medium">
+                            Description:
+                          </span>{" "}
+                          {item.description}
+                        </p>
+                      )}
                     </div>
 
                     <div>
@@ -847,9 +914,68 @@ export default function EditQuotePage() {
             </div>
 
             <div className="rounded-xl border border-charcoal-100 bg-white p-5 shadow-sm">
-              <h2 className="mb-4 text-lg font-semibold text-charcoal-900">
-                Totals
-              </h2>
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-charcoal-900">
+                  Totals
+                </h2>
+
+                <button
+                  type="button"
+                  onClick={() => setVatEnabled((current) => !current)}
+                  className={`relative inline-flex h-10 w-24 items-center rounded-full px-1 transition ${
+                    vatEnabled
+                      ? "bg-[#20AEB8]"
+                      : "bg-charcoal-300"
+                  }`}
+                  aria-pressed={vatEnabled}
+                  aria-label={
+                    vatEnabled
+                      ? "Turn VAT off"
+                      : "Turn VAT on"
+                  }
+                >
+                  <span
+                    className={`absolute h-8 w-8 rounded-full bg-white shadow-sm transition-transform ${
+                      vatEnabled
+                        ? "translate-x-14"
+                        : "translate-x-0"
+                    }`}
+                  />
+
+                  <span
+                    className={`w-full text-xs font-bold ${
+                      vatEnabled
+                        ? "pr-8 text-white"
+                        : "pl-8 text-charcoal-700"
+                    }`}
+                  >
+                    {vatEnabled ? "VAT ON" : "VAT OFF"}
+                  </span>
+                </button>
+              </div>
+
+              {vatEnabled && (
+                <div className="mb-4">
+                  <label
+                    htmlFor="vat-rate"
+                    className="mb-1 block text-sm font-medium text-charcoal-700"
+                  >
+                    VAT Rate (%)
+                  </label>
+
+                  <input
+                    id="vat-rate"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={vatRate}
+                    onChange={(event) =>
+                      setVatRate(Number(event.target.value))
+                    }
+                    className="w-full rounded-lg border border-charcoal-200 px-3 py-2.5 text-sm outline-none focus:border-charcoal-500 sm:max-w-xs"
+                  />
+                </div>
+              )}
 
               <div className="space-y-3 text-sm">
                 <div className="flex justify-between">

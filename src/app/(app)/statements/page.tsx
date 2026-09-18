@@ -5,10 +5,19 @@ import {
   CalendarDays,
   FileText,
   Loader2,
-  Printer,
   Search,
   X,
 } from "lucide-react";
+
+import {
+  Document,
+  Image,
+  Page,
+  PDFDownloadLink,
+  StyleSheet,
+  Text,
+  View,
+} from "@react-pdf/renderer";
 
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { PageHeader } from "@/components/layout/page-header";
@@ -40,30 +49,6 @@ interface Invoice {
   notes?: string | null;
 }
 
-interface Payment {
-  id: string;
-  payment_number: string;
-  customer_id: string;
-  payment_date: string;
-  amount: number;
-  payment_method?: string | null;
-  reference?: string | null;
-  notes?: string | null;
-}
-
-interface StatementTransaction {
-  id: string;
-  date: string;
-  type: "Invoice" | "Payment";
-  reference: string;
-  description: string;
-  debit: number;
-  credit: number;
-  balance: number;
-  dueDate?: string | null;
-  status?: string | null;
-}
-
 function getTodayString() {
   return new Date().toISOString().split("T")[0];
 }
@@ -74,8 +59,625 @@ function getDefaultStartDate() {
   return date.toISOString().split("T")[0];
 }
 
-function getDefaultEndDate() {
-  return getTodayString();
+function formatCurrency(value: number) {
+  return `R ${Number(value || 0).toLocaleString("en-ZA", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
+function formatDate(value?: string | null) {
+  if (!value) {
+    return "";
+  }
+
+  const date = new Date(`${value}T00:00:00`);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return date.toLocaleDateString("en-ZA", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+}
+
+/* =========================================================
+   STATEMENT PDF STYLES
+   MATCHES InvoicePDF.tsx
+========================================================= */
+
+const pdfStyles = StyleSheet.create({
+  page: {
+    width: "100%",
+    height: "100%",
+    paddingTop: 34,
+    paddingBottom: 42,
+    paddingLeft: 38,
+    paddingRight: 38,
+    fontFamily: "Helvetica",
+    fontSize: 8,
+    color: "#222222",
+    backgroundColor: "#FFFFFF",
+  },
+
+  /* =====================================================
+     HEADER
+  ===================================================== */
+
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 16,
+  },
+
+  logoArea: {
+    width: "55%",
+  },
+
+  registeredName: {
+    fontSize: 6.5,
+    color: "#666666",
+    marginBottom: 5,
+  },
+
+  logo: {
+    width: 175,
+    height: 94,
+    objectFit: "contain",
+  },
+
+  invoiceHeading: {
+    width: "40%",
+    alignItems: "flex-end",
+    paddingTop: 10,
+  },
+
+  invoiceTitle: {
+    fontSize: 22,
+    fontWeight: "bold",
+    letterSpacing: 1,
+    color: "#222222",
+    marginBottom: 10,
+  },
+
+  invoiceInfoRow: {
+    flexDirection: "row",
+    marginBottom: 4,
+  },
+
+  invoiceInfoLabel: {
+    width: 65,
+    textAlign: "right",
+    color: "#777777",
+    fontSize: 8,
+    marginRight: 7,
+  },
+
+  invoiceInfoValue: {
+    width: 75,
+    textAlign: "right",
+    fontWeight: "bold",
+    fontSize: 8,
+  },
+
+  cyanLine: {
+    height: 3,
+    backgroundColor: "#20AEB8",
+    marginBottom: 18,
+  },
+
+  /* =====================================================
+     COMPANY DETAILS
+  ===================================================== */
+
+  companyDetails: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 18,
+  },
+
+  companyDetailsLeft: {
+    width: "48%",
+  },
+
+  companyDetailsRight: {
+    width: "48%",
+    alignItems: "flex-end",
+  },
+
+  companyName: {
+    fontSize: 11,
+    fontWeight: "bold",
+    marginBottom: 4,
+    color: "#20AEB8",
+  },
+
+  smallText: {
+    fontSize: 7.5,
+    color: "#555555",
+    marginBottom: 2.5,
+  },
+
+  /* =====================================================
+     PARTIES
+  ===================================================== */
+
+  parties: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: "#D9DDE3",
+    paddingTop: 12,
+    paddingBottom: 12,
+    marginBottom: 18,
+  },
+
+  partyBox: {
+    width: "48%",
+  },
+
+  partyHeading: {
+    fontSize: 8,
+    fontWeight: "bold",
+    color: "#20AEB8",
+    marginBottom: 6,
+    textTransform: "uppercase",
+  },
+
+  partyName: {
+    fontSize: 10,
+    fontWeight: "bold",
+    marginBottom: 4,
+  },
+
+  /* =====================================================
+     TABLE
+  ===================================================== */
+
+  table: {
+    width: "100%",
+  },
+
+  tableHeader: {
+    flexDirection: "row",
+    backgroundColor: "#20AEB8",
+    paddingTop: 7,
+    paddingBottom: 7,
+    paddingLeft: 5,
+    paddingRight: 5,
+  },
+
+  tableHeaderText: {
+    fontSize: 7.5,
+    fontWeight: "bold",
+    color: "#FFFFFF",
+  },
+
+  tableRow: {
+    flexDirection: "row",
+    minHeight: 28,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E6E6E6",
+    paddingTop: 7,
+    paddingBottom: 7,
+    paddingLeft: 5,
+    paddingRight: 5,
+  },
+
+  invoiceNumberColumn: {
+    width: "30%",
+  },
+
+  invoiceDateColumn: {
+    width: "23%",
+  },
+
+  dueDateColumn: {
+    width: "23%",
+  },
+
+  amountColumn: {
+    width: "24%",
+    textAlign: "right",
+  },
+
+  tableText: {
+    fontSize: 7.5,
+  },
+
+  /* =====================================================
+     TOTALS
+  ===================================================== */
+
+  totals: {
+    marginTop: 14,
+    marginLeft: "58%",
+    width: "42%",
+  },
+
+  totalTopLine: {
+    borderTopWidth: 1,
+    borderTopColor: "#999999",
+    marginTop: 4,
+  },
+
+  grandTotalRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingTop: 7,
+    paddingBottom: 7,
+    borderBottomWidth: 2,
+    borderBottomColor: "#20AEB8",
+  },
+
+  grandTotalLabel: {
+    fontSize: 10,
+    fontWeight: "bold",
+  },
+
+  grandTotalValue: {
+    fontSize: 11,
+    fontWeight: "bold",
+    color: "#20AEB8",
+  },
+
+  /* =====================================================
+     FOOTER
+  ===================================================== */
+
+  footer: {
+    position: "absolute",
+    bottom: 20,
+    left: 38,
+    right: 38,
+    borderTopWidth: 1,
+    borderTopColor: "#D9DDE3",
+    paddingTop: 7,
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+
+  footerLeft: {
+    width: "60%",
+  },
+
+  footerRight: {
+    width: "40%",
+    alignItems: "flex-end",
+  },
+
+  footerText: {
+    fontSize: 6.5,
+    color: "#777777",
+    marginBottom: 1.5,
+  },
+});
+
+/* =========================================================
+   STATEMENT PDF
+   SAME VISUAL TEMPLATE AS InvoicePDF.tsx
+========================================================= */
+
+function StatementPDF({
+  customer,
+  invoices,
+  totalInvoices,
+  statementDate,
+  startDate,
+  endDate,
+  fromInvoice,
+  toInvoice,
+}: {
+  customer: Customer;
+  invoices: Invoice[];
+  totalInvoices: number;
+  statementDate: string;
+  startDate: string;
+  endDate: string;
+  fromInvoice: Invoice | null;
+  toInvoice: Invoice | null;
+}) {
+  return (
+    <Document
+      title="Customer Statement"
+      author="SkipCo Solutions"
+      subject={`Customer Statement - ${customer.company_name}`}
+    >
+      <Page
+        size="A4"
+        orientation="portrait"
+        style={pdfStyles.page}
+        wrap
+      >
+        {/* HEADER */}
+
+        <View style={pdfStyles.header}>
+          <View style={pdfStyles.logoArea}>
+            <Text style={pdfStyles.registeredName}>
+              DDW Consolidate t/a SkipCo Solutions
+            </Text>
+
+            <Image
+              src="/skipco-logo.jpg"
+              style={pdfStyles.logo}
+            />
+          </View>
+
+          <View style={pdfStyles.invoiceHeading}>
+            <Text style={pdfStyles.invoiceTitle}>
+              CUSTOMER STATEMENT
+            </Text>
+
+            <View style={pdfStyles.invoiceInfoRow}>
+              <Text style={pdfStyles.invoiceInfoLabel}>
+                Statement Date
+              </Text>
+
+              <Text style={pdfStyles.invoiceInfoValue}>
+                {formatDate(statementDate)}
+              </Text>
+            </View>
+
+            <View style={pdfStyles.invoiceInfoRow}>
+              <Text style={pdfStyles.invoiceInfoLabel}>
+                From Date
+              </Text>
+
+              <Text style={pdfStyles.invoiceInfoValue}>
+                {formatDate(startDate)}
+              </Text>
+            </View>
+
+            <View style={pdfStyles.invoiceInfoRow}>
+              <Text style={pdfStyles.invoiceInfoLabel}>
+                To Date
+              </Text>
+
+              <Text style={pdfStyles.invoiceInfoValue}>
+                {formatDate(endDate)}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={pdfStyles.cyanLine} />
+
+        {/* COMPANY DETAILS */}
+
+        <View style={pdfStyles.companyDetails}>
+          <View style={pdfStyles.companyDetailsLeft}>
+            <Text style={pdfStyles.companyName}>
+              Skip Co Solutions
+            </Text>
+
+            <Text style={pdfStyles.smallText}>
+              Skip Hire & Waste Removal
+            </Text>
+          </View>
+
+          <View style={pdfStyles.companyDetailsRight}>
+            <Text style={pdfStyles.smallText}>
+              Pellesier, Bloemfontein
+            </Text>
+
+            <Text style={pdfStyles.smallText}>
+              062 737 9728
+            </Text>
+
+            <Text style={pdfStyles.smallText}>
+              ddw.trading@outlook.com
+            </Text>
+          </View>
+        </View>
+
+        {/* INVOICE FROM / INVOICE TO */}
+
+        <View style={pdfStyles.parties}>
+          <View style={pdfStyles.partyBox}>
+            <Text style={pdfStyles.partyHeading}>
+              Invoice From
+            </Text>
+
+            <Text style={pdfStyles.partyName}>
+              Skip Co Solutions
+            </Text>
+
+            <Text style={pdfStyles.smallText}>
+              Pellesier, Bloemfontein
+            </Text>
+
+            <Text style={pdfStyles.smallText}>
+              062 737 9728
+            </Text>
+
+            <Text style={pdfStyles.smallText}>
+              ddw.trading@outlook.com
+            </Text>
+          </View>
+
+          <View style={pdfStyles.partyBox}>
+            <Text style={pdfStyles.partyHeading}>
+              Invoice To
+            </Text>
+
+            <Text style={pdfStyles.partyName}>
+              {customer.company_name}
+            </Text>
+
+            {customer.contact_person && (
+              <Text style={pdfStyles.smallText}>
+                {customer.contact_person}
+              </Text>
+            )}
+
+            {customer.phone && (
+              <Text style={pdfStyles.smallText}>
+                {customer.phone}
+              </Text>
+            )}
+
+            {customer.email && (
+              <Text style={pdfStyles.smallText}>
+                {customer.email}
+              </Text>
+            )}
+
+            {customer.physical_address && (
+              <Text style={pdfStyles.smallText}>
+                {customer.physical_address}
+              </Text>
+            )}
+          </View>
+        </View>
+
+        {/* INVOICE TABLE */}
+
+        <View style={pdfStyles.table}>
+          <View style={pdfStyles.tableHeader}>
+            <Text
+              style={[
+                pdfStyles.tableHeaderText,
+                pdfStyles.invoiceNumberColumn,
+              ]}
+            >
+              INVOICE NO.
+            </Text>
+
+            <Text
+              style={[
+                pdfStyles.tableHeaderText,
+                pdfStyles.invoiceDateColumn,
+              ]}
+            >
+              INVOICE DATE
+            </Text>
+
+            <Text
+              style={[
+                pdfStyles.tableHeaderText,
+                pdfStyles.dueDateColumn,
+              ]}
+            >
+              DUE DATE
+            </Text>
+
+            <Text
+              style={[
+                pdfStyles.tableHeaderText,
+                pdfStyles.amountColumn,
+              ]}
+            >
+              AMOUNT
+            </Text>
+          </View>
+
+          {invoices.map((invoice) => (
+            <View
+              key={invoice.id}
+              style={pdfStyles.tableRow}
+              wrap={false}
+            >
+              <Text
+                style={[
+                  pdfStyles.tableText,
+                  pdfStyles.invoiceNumberColumn,
+                ]}
+              >
+                {invoice.invoice_number}
+              </Text>
+
+              <Text
+                style={[
+                  pdfStyles.tableText,
+                  pdfStyles.invoiceDateColumn,
+                ]}
+              >
+                {formatDate(invoice.invoice_date)}
+              </Text>
+
+              <Text
+                style={[
+                  pdfStyles.tableText,
+                  pdfStyles.dueDateColumn,
+                ]}
+              >
+                {formatDate(invoice.due_date)}
+              </Text>
+
+              <Text
+                style={[
+                  pdfStyles.tableText,
+                  pdfStyles.amountColumn,
+                ]}
+              >
+                {formatCurrency(
+                  Number(invoice.total || 0)
+                )}
+              </Text>
+            </View>
+          ))}
+
+          {invoices.length === 0 && (
+            <View style={pdfStyles.tableRow}>
+              <Text
+                style={[
+                  pdfStyles.tableText,
+                  pdfStyles.invoiceNumberColumn,
+                ]}
+              >
+                No invoices found.
+              </Text>
+            </View>
+          )}
+        </View>
+
+        {/* TOTAL */}
+
+        <View style={pdfStyles.totals} wrap={false}>
+          <View style={pdfStyles.totalTopLine} />
+
+          <View style={pdfStyles.grandTotalRow}>
+            <Text style={pdfStyles.grandTotalLabel}>
+              TOTAL INVOICES
+            </Text>
+
+            <Text style={pdfStyles.grandTotalValue}>
+              {formatCurrency(totalInvoices)}
+            </Text>
+          </View>
+        </View>
+
+        {/* FOOTER */}
+
+        <View style={pdfStyles.footer} fixed>
+          <View style={pdfStyles.footerLeft}>
+            <Text style={pdfStyles.footerText}>
+              Skip Co Solutions
+            </Text>
+
+            <Text style={pdfStyles.footerText}>
+              Pellesier, Bloemfontein
+            </Text>
+          </View>
+
+          <View style={pdfStyles.footerRight}>
+            <Text style={pdfStyles.footerText}>
+              062 737 9728
+            </Text>
+
+            <Text style={pdfStyles.footerText}>
+              ddw.trading@outlook.com
+            </Text>
+          </View>
+        </View>
+      </Page>
+    </Document>
+  );
 }
 
 export default function StatementsPage() {
@@ -83,21 +685,18 @@ export default function StatementsPage() {
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [payments, setPayments] = useState<Payment[]>([]);
 
   const [selectedCustomerId, setSelectedCustomerId] =
     useState("");
 
-  const [startDate, setStartDate] =
-    useState("");
-
-  const [endDate, setEndDate] =
-    useState("");
-
-  const [statementDate, setStatementDate] =
-    useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [statementDate, setStatementDate] = useState("");
 
   const [search, setSearch] = useState("");
+
+  const [fromInvoice, setFromInvoice] = useState("");
+  const [toInvoice, setToInvoice] = useState("");
 
   const [loading, setLoading] = useState(true);
   const [loadingStatement, setLoadingStatement] =
@@ -111,8 +710,9 @@ export default function StatementsPage() {
 
   useEffect(() => {
     setStartDate(getDefaultStartDate());
-    setEndDate(getDefaultEndDate());
+    setEndDate(getTodayString());
     setStatementDate(getTodayString());
+
     loadCustomers();
   }, []);
 
@@ -142,10 +742,7 @@ export default function StatementsPage() {
       });
 
     if (error) {
-      console.error(
-        "Customer loading error:",
-        error
-      );
+      console.error("Customer loading error:", error);
 
       setError(
         `Unable to load customers: ${error.message}`
@@ -160,7 +757,7 @@ export default function StatementsPage() {
   }
 
   /* =========================================================
-     LOAD INVOICES + PAYMENTS
+     LOAD INVOICES
   ========================================================= */
 
   async function loadStatementData(
@@ -168,70 +765,32 @@ export default function StatementsPage() {
   ) {
     if (!customerId) {
       setInvoices([]);
-      setPayments([]);
       return;
     }
 
     setLoadingStatement(true);
     setError("");
 
-    const [
-      invoicesResult,
-      paymentsResult,
-    ] = await Promise.all([
-      supabase
-        .from("invoices")
-        .select("*")
-        .eq("customer_id", customerId)
-        .order("invoice_date", {
-          ascending: true,
-        }),
+    const { data, error } = await supabase
+      .from("invoices")
+      .select("*")
+      .eq("customer_id", customerId)
+      .order("invoice_date", {
+        ascending: true,
+      });
 
-      supabase
-        .from("payments")
-        .select("*")
-        .eq("customer_id", customerId)
-        .order("payment_date", {
-          ascending: true,
-        }),
-    ]);
-
-    if (invoicesResult.error) {
-      console.error(
-        "Invoice loading error:",
-        invoicesResult.error
-      );
+    if (error) {
+      console.error("Invoice loading error:", error);
 
       setError(
-        `Unable to load invoices: ${invoicesResult.error.message}`
+        `Unable to load invoices: ${error.message}`
       );
 
       setLoadingStatement(false);
       return;
     }
 
-    if (paymentsResult.error) {
-      console.error(
-        "Payment loading error:",
-        paymentsResult.error
-      );
-
-      setError(
-        `Unable to load payments: ${paymentsResult.error.message}`
-      );
-
-      setLoadingStatement(false);
-      return;
-    }
-
-    setInvoices(
-      (invoicesResult.data ?? []) as Invoice[]
-    );
-
-    setPayments(
-      (paymentsResult.data ?? []) as Payment[]
-    );
-
+    setInvoices((data ?? []) as Invoice[]);
     setLoadingStatement(false);
   }
 
@@ -240,7 +799,8 @@ export default function StatementsPage() {
       loadStatementData(selectedCustomerId);
     } else {
       setInvoices([]);
-      setPayments([]);
+      setFromInvoice("");
+      setToInvoice("");
     }
   }, [selectedCustomerId]);
 
@@ -281,294 +841,134 @@ export default function StatementsPage() {
     ) ?? null;
 
   /* =========================================================
-     DATE HELPERS
+     SORT INVOICES
   ========================================================= */
 
-  function isBeforeDate(
-    value: string,
-    comparison: string
-  ) {
-    return value < comparison;
-  }
+  const sortedInvoices = useMemo(() => {
+    return [...invoices].sort((a, b) => {
+      if (a.invoice_date === b.invoice_date) {
+        return a.invoice_number.localeCompare(
+          b.invoice_number,
+          undefined,
+          {
+            numeric: true,
+            sensitivity: "base",
+          }
+        );
+      }
 
-  function isWithinDateRange(
-    value: string
-  ) {
-    if (!startDate || !endDate) {
-      return false;
+      return a.invoice_date.localeCompare(
+        b.invoice_date
+      );
+    });
+  }, [invoices]);
+
+  /* =========================================================
+     INVOICE RANGE
+  ========================================================= */
+
+  const invoiceRangeSet = useMemo(() => {
+    if (!fromInvoice && !toInvoice) {
+      return null;
     }
 
-    return (
-      value >= startDate &&
-      value <= endDate
+    const fromIndex = fromInvoice
+      ? sortedInvoices.findIndex(
+          (invoice) =>
+            invoice.id === fromInvoice
+        )
+      : 0;
+
+    const toIndex = toInvoice
+      ? sortedInvoices.findIndex(
+          (invoice) =>
+            invoice.id === toInvoice
+        )
+      : sortedInvoices.length - 1;
+
+    if (
+      fromIndex === -1 ||
+      toIndex === -1
+    ) {
+      return new Set<string>();
+    }
+
+    const startIndex = Math.min(
+      fromIndex,
+      toIndex
     );
+
+    const endIndex = Math.max(
+      fromIndex,
+      toIndex
+    );
+
+    return new Set(
+      sortedInvoices
+        .slice(
+          startIndex,
+          endIndex + 1
+        )
+        .map((invoice) => invoice.id)
+    );
+  }, [
+    fromInvoice,
+    toInvoice,
+    sortedInvoices,
+  ]);
+
+  function invoiceIsInSelectedRange(
+    invoiceId: string
+  ) {
+    if (!invoiceRangeSet) {
+      return true;
+    }
+
+    return invoiceRangeSet.has(invoiceId);
   }
 
   /* =========================================================
-     OPENING BALANCE
+     DISPLAYED INVOICES
   ========================================================= */
 
-  const openingBalance = useMemo(() => {
-    if (!selectedCustomerId || !startDate) {
-      return 0;
-    }
+  const displayedInvoices = useMemo(() => {
+    return sortedInvoices.filter(
+      (invoice) => {
+        const withinDateRange =
+          (!startDate ||
+            invoice.invoice_date >=
+              startDate) &&
+          (!endDate ||
+            invoice.invoice_date <=
+              endDate);
 
-    const invoicesBeforePeriod =
-      invoices
-        .filter((invoice) =>
-          isBeforeDate(
-            invoice.invoice_date,
-            startDate
+        return (
+          withinDateRange &&
+          invoiceIsInSelectedRange(
+            invoice.id
           )
-        )
-        .reduce(
-          (total, invoice) =>
-            total +
-            Number(invoice.total || 0),
-          0
         );
-
-    const paymentsBeforePeriod =
-      payments
-        .filter((payment) =>
-          isBeforeDate(
-            payment.payment_date,
-            startDate
-          )
-        )
-        .reduce(
-          (total, payment) =>
-            total +
-            Number(payment.amount || 0),
-          0
-        );
-
-    return (
-      invoicesBeforePeriod -
-      paymentsBeforePeriod
+      }
     );
   }, [
-    invoices,
-    payments,
-    selectedCustomerId,
+    sortedInvoices,
     startDate,
+    endDate,
+    invoiceRangeSet,
   ]);
 
   /* =========================================================
-     STATEMENT TRANSACTIONS
+     TOTAL
   ========================================================= */
 
-  const transactions =
-    useMemo<StatementTransaction[]>(() => {
-      if (!selectedCustomerId) {
-        return [];
-      }
-
-      const transactionList: StatementTransaction[] =
-        [];
-
-      invoices
-        .filter((invoice) =>
-          isWithinDateRange(
-            invoice.invoice_date
-          )
-        )
-        .forEach((invoice) => {
-          transactionList.push({
-            id: `invoice-${invoice.id}`,
-            date: invoice.invoice_date,
-            type: "Invoice",
-            reference:
-              invoice.invoice_number,
-            description: "Invoice",
-            debit: Number(
-              invoice.total || 0
-            ),
-            credit: 0,
-            balance: 0,
-            dueDate: invoice.due_date,
-            status: invoice.status,
-          });
-        });
-
-      payments
-        .filter((payment) =>
-          isWithinDateRange(
-            payment.payment_date
-          )
-        )
-        .forEach((payment) => {
-          transactionList.push({
-            id: `payment-${payment.id}`,
-            date: payment.payment_date,
-            type: "Payment",
-            reference:
-              payment.payment_number,
-            description:
-              payment.payment_method
-                ? `Payment - ${payment.payment_method}`
-                : "Payment",
-            debit: 0,
-            credit: Number(
-              payment.amount || 0
-            ),
-            balance: 0,
-            status: null,
-          });
-        });
-
-      transactionList.sort((a, b) => {
-        if (a.date === b.date) {
-          if (
-            a.type === "Invoice" &&
-            b.type === "Payment"
-          ) {
-            return -1;
-          }
-
-          if (
-            a.type === "Payment" &&
-            b.type === "Invoice"
-          ) {
-            return 1;
-          }
-
-          return 0;
-        }
-
-        return a.date.localeCompare(b.date);
-      });
-
-      let runningBalance =
-        openingBalance;
-
-      return transactionList.map(
-        (transaction) => {
-          runningBalance +=
-            transaction.debit -
-            transaction.credit;
-
-          return {
-            ...transaction,
-            balance: runningBalance,
-          };
-        }
-      );
-    }, [
-      invoices,
-      payments,
-      selectedCustomerId,
-      startDate,
-      endDate,
-      openingBalance,
-    ]);
-
-  /* =========================================================
-     SUMMARY
-  ========================================================= */
-
-  const totalInvoices =
-    transactions.reduce(
-      (total, transaction) =>
-        total + transaction.debit,
+  const totalInvoices = useMemo(() => {
+    return displayedInvoices.reduce(
+      (total, invoice) =>
+        total +
+        Number(invoice.total || 0),
       0
     );
-
-  const totalPayments =
-    transactions.reduce(
-      (total, transaction) =>
-        total + transaction.credit,
-      0
-    );
-
-  const closingBalance =
-    openingBalance +
-    totalInvoices -
-    totalPayments;
-
-  const overdueAmount =
-    useMemo(() => {
-      if (!selectedCustomerId) {
-        return 0;
-      }
-
-      const todayString =
-        statementDate || getTodayString();
-
-      const totalInvoiced = invoices
-        .filter(
-          (invoice) =>
-            invoice.due_date < todayString &&
-            Number(invoice.total || 0) > 0 &&
-            invoice.status !== "Paid"
-        )
-        .reduce(
-          (total, invoice) =>
-            total + Number(invoice.total || 0),
-          0
-        );
-
-      return Math.max(0, totalInvoiced);
-    }, [
-      invoices,
-      selectedCustomerId,
-      statementDate,
-    ]);
-
-  /* =========================================================
-     FORMATTERS
-  ========================================================= */
-
-  function formatCurrency(
-    value: number
-  ) {
-    return `R ${Number(
-      value || 0
-    ).toLocaleString("en-ZA", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })}`;
-  }
-
-  function formatDate(
-    value?: string | null
-  ) {
-    if (!value) {
-      return "—";
-    }
-
-    const date =
-      new Date(`${value}T00:00:00`);
-
-    if (
-      Number.isNaN(
-        date.getTime()
-      )
-    ) {
-      return value;
-    }
-
-    return date.toLocaleDateString(
-      "en-ZA",
-      {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-      }
-    );
-  }
-
-  /* =========================================================
-     PRINT
-  ========================================================= */
-
-  function printStatement() {
-    if (!selectedCustomer) {
-      return;
-    }
-
-    window.print();
-  }
+  }, [displayedInvoices]);
 
   /* =========================================================
      CLEAR
@@ -578,9 +978,37 @@ export default function StatementsPage() {
     setSelectedCustomerId("");
     setSearch("");
     setInvoices([]);
-    setPayments([]);
+    setFromInvoice("");
+    setToInvoice("");
     setError("");
   }
+
+  const selectedFromInvoice =
+    fromInvoice
+      ? sortedInvoices.find(
+          (invoice) =>
+            invoice.id === fromInvoice
+        ) ?? null
+      : null;
+
+  const selectedToInvoice =
+    toInvoice
+      ? sortedInvoices.find(
+          (invoice) =>
+            invoice.id === toInvoice
+        ) ?? null
+      : null;
+
+  const pdfReady =
+    !!selectedCustomer &&
+    !loadingStatement &&
+    displayedInvoices.length > 0;
+
+  const pdfFileName = selectedCustomer
+    ? `Statement-${selectedCustomer.company_name
+        .replace(/[^a-zA-Z0-9]+/g, "-")
+        .replace(/^-|-$/g, "")}.pdf`
+    : "Customer-Statement.pdf";
 
   /* =========================================================
      PAGE
@@ -589,23 +1017,17 @@ export default function StatementsPage() {
   return (
     <DashboardShell
       title="Statements"
-      subtitle="Customer account statements and outstanding balances"
+      subtitle="Customer statements and invoice summaries"
     >
       <PageHeader
         title="Customer Statements"
-        description="View customer invoices, payments and account balances."
+        description="Create an invoice-style statement containing selected customer invoices."
         icon={FileText}
-        action={{
-          label: "Print Statement",
-          href: "#",
-        }}
       />
 
       <div className="space-y-6">
 
-        {/* =================================================
-            ERROR
-        ================================================= */}
+        {/* ERROR */}
 
         {error && (
           <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -613,36 +1035,30 @@ export default function StatementsPage() {
           </div>
         )}
 
-        {/* =================================================
-            CUSTOMER SELECTION
-        ================================================= */}
+        {/* CUSTOMER SELECTION */}
 
         <div className="rounded-2xl border border-charcoal-100 bg-white p-6 shadow-sm">
 
           <div className="mb-5">
-
             <h2 className="text-lg font-semibold text-charcoal-900">
               Select Customer
             </h2>
 
             <p className="mt-1 text-sm text-charcoal-500">
-              Choose a customer to view their account statement.
+              Choose a customer and select the invoices to include in the statement.
             </p>
-
           </div>
 
           <div className="grid gap-5 md:grid-cols-3">
 
-            {/* Customer Search */}
+            {/* SEARCH */}
 
             <div className="md:col-span-1">
-
               <label className="mb-2 block text-sm font-medium text-charcoal-700">
                 Search Customer
               </label>
 
               <div className="relative">
-
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-charcoal-400" />
 
                 <input
@@ -655,15 +1071,12 @@ export default function StatementsPage() {
                   placeholder="Search by name or number..."
                   className="w-full rounded-lg border border-charcoal-200 py-2.5 pl-9 pr-3 text-sm outline-none focus:border-[#20AEB8] focus:ring-2 focus:ring-[#20AEB8]/10"
                 />
-
               </div>
-
             </div>
 
-            {/* Customer */}
+            {/* CUSTOMER */}
 
             <div className="md:col-span-2">
-
               <label className="mb-2 block text-sm font-medium text-charcoal-700">
                 Customer
               </label>
@@ -694,21 +1107,17 @@ export default function StatementsPage() {
                     </option>
                   )
                 )}
-
               </select>
-
             </div>
 
-            {/* Start Date */}
+            {/* FROM DATE */}
 
             <div>
-
               <label className="mb-2 block text-sm font-medium text-charcoal-700">
                 Statement From
               </label>
 
               <div className="relative">
-
                 <CalendarDays className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-charcoal-400" />
 
                 <input
@@ -721,21 +1130,17 @@ export default function StatementsPage() {
                   }
                   className="w-full rounded-lg border border-charcoal-200 py-2.5 pl-9 pr-3 text-sm outline-none focus:border-[#20AEB8] focus:ring-2 focus:ring-[#20AEB8]/10"
                 />
-
               </div>
-
             </div>
 
-            {/* End Date */}
+            {/* TO DATE */}
 
             <div>
-
               <label className="mb-2 block text-sm font-medium text-charcoal-700">
                 Statement To
               </label>
 
               <div className="relative">
-
                 <CalendarDays className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-charcoal-400" />
 
                 <input
@@ -748,12 +1153,84 @@ export default function StatementsPage() {
                   }
                   className="w-full rounded-lg border border-charcoal-200 py-2.5 pl-9 pr-3 text-sm outline-none focus:border-[#20AEB8] focus:ring-2 focus:ring-[#20AEB8]/10"
                 />
-
               </div>
-
             </div>
 
-            {/* Actions */}
+            {/* FROM INVOICE */}
+
+            <div>
+              <label className="mb-2 block text-sm font-medium text-charcoal-700">
+                From Invoice
+              </label>
+
+              <select
+                value={fromInvoice}
+                onChange={(event) =>
+                  setFromInvoice(
+                    event.target.value
+                  )
+                }
+                disabled={
+                  !selectedCustomerId ||
+                  invoices.length === 0
+                }
+                className="w-full rounded-lg border border-charcoal-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#20AEB8] focus:ring-2 focus:ring-[#20AEB8]/10 disabled:cursor-not-allowed disabled:bg-charcoal-50 disabled:text-charcoal-400"
+              >
+                <option value="">
+                  All invoices
+                </option>
+
+                {sortedInvoices.map(
+                  (invoice) => (
+                    <option
+                      key={invoice.id}
+                      value={invoice.id}
+                    >
+                      {invoice.invoice_number}
+                    </option>
+                  )
+                )}
+              </select>
+            </div>
+
+            {/* TO INVOICE */}
+
+            <div>
+              <label className="mb-2 block text-sm font-medium text-charcoal-700">
+                To Invoice
+              </label>
+
+              <select
+                value={toInvoice}
+                onChange={(event) =>
+                  setToInvoice(
+                    event.target.value
+                  )
+                }
+                disabled={
+                  !selectedCustomerId ||
+                  invoices.length === 0
+                }
+                className="w-full rounded-lg border border-charcoal-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#20AEB8] focus:ring-2 focus:ring-[#20AEB8]/10 disabled:cursor-not-allowed disabled:bg-charcoal-50 disabled:text-charcoal-400"
+              >
+                <option value="">
+                  All invoices
+                </option>
+
+                {sortedInvoices.map(
+                  (invoice) => (
+                    <option
+                      key={invoice.id}
+                      value={invoice.id}
+                    >
+                      {invoice.invoice_number}
+                    </option>
+                  )
+                )}
+              </select>
+            </div>
+
+            {/* BUTTONS */}
 
             <div className="flex items-end gap-2">
 
@@ -766,450 +1243,390 @@ export default function StatementsPage() {
                 Clear
               </button>
 
-              <button
-                type="button"
-                onClick={printStatement}
-                disabled={
-                  !selectedCustomer ||
-                  loadingStatement
-                }
-                className="inline-flex items-center gap-2 rounded-lg bg-charcoal-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-charcoal-800 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <Printer className="h-4 w-4" />
-                Print
-              </button>
+              {pdfReady ? (
+                <PDFDownloadLink
+                  document={
+                    <StatementPDF
+                      customer={selectedCustomer}
+                      invoices={displayedInvoices}
+                      totalInvoices={totalInvoices}
+                      statementDate={statementDate}
+                      startDate={startDate}
+                      endDate={endDate}
+                      fromInvoice={
+                        selectedFromInvoice
+                      }
+                      toInvoice={
+                        selectedToInvoice
+                      }
+                    />
+                  }
+                  fileName={pdfFileName}
+                >
+                  {({ loading: pdfLoading }) => (
+                    <span
+                      className={`inline-flex items-center gap-2 rounded-lg bg-charcoal-900 px-4 py-2.5 text-sm font-medium text-white ${
+                        pdfLoading
+                          ? "cursor-wait opacity-60"
+                          : "hover:bg-charcoal-800"
+                      }`}
+                    >
+                      <FileText className="h-4 w-4" />
+                      {pdfLoading
+                        ? "Preparing PDF..."
+                        : "Download PDF"}
+                    </span>
+                  )}
+                </PDFDownloadLink>
+              ) : (
+                <button
+                  type="button"
+                  disabled
+                  className="inline-flex cursor-not-allowed items-center gap-2 rounded-lg bg-charcoal-900 px-4 py-2.5 text-sm font-medium text-white opacity-50"
+                >
+                  <FileText className="h-4 w-4" />
+                  Download PDF
+                </button>
+              )}
 
             </div>
-
           </div>
 
+          {(fromInvoice || toInvoice) && (
+            <div className="mt-5 rounded-xl border border-[#20AEB8]/20 bg-[#20AEB8]/5 px-4 py-3 text-sm text-charcoal-600">
+              Invoice range:{" "}
+              <span className="font-semibold text-charcoal-900">
+                {fromInvoice
+                  ? selectedFromInvoice
+                      ?.invoice_number ?? "Start"
+                  : "Start"}{" "}
+                →{" "}
+                {toInvoice
+                  ? selectedToInvoice
+                      ?.invoice_number ?? "End"
+                  : "Latest"}
+              </span>
+            </div>
+          )}
         </div>
 
-        {/* =================================================
-            LOADING
-        ================================================= */}
+        {/* LOADING */}
 
         {loadingStatement && (
           <div className="flex items-center justify-center rounded-2xl border border-charcoal-100 bg-white px-6 py-16 shadow-sm">
-
             <Loader2 className="h-6 w-6 animate-spin text-[#20AEB8]" />
 
             <span className="ml-3 text-sm text-charcoal-500">
-              Loading customer statement...
+              Loading customer invoices...
             </span>
-
           </div>
         )}
 
-        {/* =================================================
-            STATEMENT
-        ================================================= */}
+        {/* STATEMENT PREVIEW */}
 
         {!loadingStatement &&
           selectedCustomer && (
-            <div
-              id="statement-print-area"
-              className="space-y-6"
-            >
+            <div className="rounded-2xl border border-charcoal-100 bg-charcoal-50 p-4 shadow-sm md:p-8">
+              <div className="mx-auto w-full max-w-[794px] bg-white p-[38px] shadow-sm">
 
-              {/* Customer Header */}
+                {/* HEADER */}
 
-              <div className="rounded-2xl border border-charcoal-100 bg-white p-6 shadow-sm">
+                <div className="flex items-start justify-between gap-8 pb-4">
 
-                <div className="flex flex-col justify-between gap-6 md:flex-row">
+                  <div className="w-[55%]">
+                    <div className="mb-1 text-[9px] text-gray-500">
+                      DDW Consolidate t/a SkipCo Solutions
+                    </div>
 
-                  <div>
+                    <img
+                      src="/skipco-logo.jpg"
+                      alt="SkipCo Solutions"
+                      className="h-[94px] w-[175px] object-contain"
+                    />
+                  </div>
 
-                    <p className="text-xs font-semibold uppercase tracking-wider text-charcoal-400">
-                      Customer Statement
-                    </p>
+                  <div className="w-[40%] pt-2 text-right">
 
-                    <h2 className="mt-2 text-2xl font-bold text-charcoal-900">
-                      {
-                        selectedCustomer.company_name
-                      }
-                    </h2>
+                    <div className="mb-2.5 text-[22px] font-bold tracking-wide text-gray-900">
+                      CUSTOMER STATEMENT
+                    </div>
 
-                    {selectedCustomer.trading_name && (
-                      <p className="mt-1 text-sm text-charcoal-500">
-                        Trading as{" "}
-                        {
-                          selectedCustomer.trading_name
-                        }
-                      </p>
-                    )}
+                    <div className="space-y-1 text-[10px]">
 
-                    <p className="mt-3 text-sm text-charcoal-600">
-                      Customer No:{" "}
-                      <span className="font-medium">
-                        {
-                          selectedCustomer.customer_number
-                        }
-                      </span>
-                    </p>
+                      <div className="flex justify-end">
+                        <span className="mr-2 w-[65px] text-right text-gray-500">
+                          Statement Date
+                        </span>
 
-                    {selectedCustomer.contact_person && (
-                      <p className="mt-1 text-sm text-charcoal-600">
-                        Contact:{" "}
-                        {
-                          selectedCustomer.contact_person
-                        }
-                      </p>
-                    )}
+                        <span className="w-[75px] text-right font-bold">
+                          {formatDate(statementDate)}
+                        </span>
+                      </div>
 
-                    {selectedCustomer.email && (
-                      <p className="mt-1 text-sm text-charcoal-600">
-                        {
-                          selectedCustomer.email
-                        }
-                      </p>
-                    )}
+                      <div className="flex justify-end">
+                        <span className="mr-2 w-[65px] text-right text-gray-500">
+                          From Date
+                        </span>
 
-                    {selectedCustomer.phone && (
-                      <p className="mt-1 text-sm text-charcoal-600">
-                        {
-                          selectedCustomer.phone
-                        }
-                      </p>
-                    )}
+                        <span className="w-[75px] text-right font-bold">
+                          {formatDate(startDate)}
+                        </span>
+                      </div>
+
+                      <div className="flex justify-end">
+                        <span className="mr-2 w-[65px] text-right text-gray-500">
+                          To Date
+                        </span>
+
+                        <span className="w-[75px] text-right font-bold">
+                          {formatDate(endDate)}
+                        </span>
+                      </div>
+
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mb-[18px] h-[3px] bg-[#20AEB8]" />
+
+                {/* COMPANY DETAILS */}
+
+                <div className="mb-[18px] flex justify-between">
+
+                  <div className="w-[48%]">
+                    <div className="mb-1 text-[11px] font-bold text-[#20AEB8]">
+                      Skip Co Solutions
+                    </div>
+
+                    <div className="space-y-[2px] text-[7.5px] text-gray-600">
+                      <div>
+                        Skip Hire &amp; Waste Removal
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="w-[48%] text-right">
+                    <div className="space-y-[2px] text-[7.5px] text-gray-600">
+                      <div>
+                        Pellesier, Bloemfontein
+                      </div>
+
+                      <div>
+                        062 737 9728
+                      </div>
+
+                      <div>
+                        ddw.trading@outlook.com
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
+
+                {/* INVOICE FROM / INVOICE TO */}
+
+                <div className="mb-[18px] flex justify-between border-y border-[#D9DDE3] py-3">
+
+                  <div className="w-[48%]">
+
+                    <div className="mb-1.5 text-[8px] font-bold uppercase text-[#20AEB8]">
+                      Invoice From
+                    </div>
+
+                    <div className="mb-1 text-[10px] font-bold">
+                      Skip Co Solutions
+                    </div>
+
+                    <div className="space-y-[2px] text-[7.5px] text-gray-600">
+                      <div>
+                        Pellesier, Bloemfontein
+                      </div>
+
+                      <div>
+                        062 737 9728
+                      </div>
+
+                      <div>
+                        ddw.trading@outlook.com
+                      </div>
+                    </div>
 
                   </div>
 
-                  <div className="text-left md:text-right">
+                  <div className="w-[48%]">
 
-                    <p className="text-sm text-charcoal-500">
-                      Statement Period
-                    </p>
+                    <div className="mb-1.5 text-[8px] font-bold uppercase text-[#20AEB8]">
+                      Invoice To
+                    </div>
 
-                    <p className="mt-1 font-semibold text-charcoal-900">
-                      {formatDate(startDate)}{" "}
-                      –{" "}
-                      {formatDate(endDate)}
-                    </p>
+                    <div className="mb-1 text-[10px] font-bold">
+                      {selectedCustomer.company_name}
+                    </div>
 
-                    <p className="mt-4 text-sm text-charcoal-500">
-                      Statement Date
-                    </p>
-
-                    <p className="mt-1 font-semibold text-charcoal-900">
-                      {statementDate
-                        ? formatDate(statementDate)
-                        : "—"}
-                    </p>
-
-                  </div>
-
-                </div>
-
-              </div>
-
-              {/* Summary */}
-
-              <div className="grid gap-4 md:grid-cols-4">
-
-                <div className="rounded-2xl border border-charcoal-100 bg-white p-5 shadow-sm">
-
-                  <p className="text-sm text-charcoal-500">
-                    Opening Balance
-                  </p>
-
-                  <p className="mt-2 text-xl font-bold text-charcoal-900">
-                    {formatCurrency(
-                      openingBalance
-                    )}
-                  </p>
-
-                </div>
-
-                <div className="rounded-2xl border border-charcoal-100 bg-white p-5 shadow-sm">
-
-                  <p className="text-sm text-charcoal-500">
-                    Invoiced
-                  </p>
-
-                  <p className="mt-2 text-xl font-bold text-charcoal-900">
-                    {formatCurrency(
-                      totalInvoices
-                    )}
-                  </p>
-
-                </div>
-
-                <div className="rounded-2xl border border-charcoal-100 bg-white p-5 shadow-sm">
-
-                  <p className="text-sm text-charcoal-500">
-                    Payments
-                  </p>
-
-                  <p className="mt-2 text-xl font-bold text-[#20AEB8]">
-                    {formatCurrency(
-                      totalPayments
-                    )}
-                  </p>
-
-                </div>
-
-                <div className="rounded-2xl border border-charcoal-100 bg-white p-5 shadow-sm">
-
-                  <p className="text-sm text-charcoal-500">
-                    Outstanding
-                  </p>
-
-                  <p
-                    className={`mt-2 text-xl font-bold ${
-                      closingBalance > 0
-                        ? "text-red-600"
-                        : "text-green-600"
-                    }`}
-                  >
-                    {formatCurrency(
-                      closingBalance
-                    )}
-                  </p>
-
-                </div>
-
-              </div>
-
-              {/* Overdue */}
-
-              {overdueAmount > 0 && (
-                <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4">
-
-                  <p className="text-sm font-semibold text-red-800">
-                    Overdue Balance
-                  </p>
-
-                  <p className="mt-1 text-sm text-red-700">
-                    This customer has{" "}
-                    <span className="font-bold">
-                      {formatCurrency(
-                        overdueAmount
+                    <div className="space-y-[2px] text-[7.5px] text-gray-600">
+                      {selectedCustomer.contact_person && (
+                        <div>
+                          {selectedCustomer.contact_person}
+                        </div>
                       )}
-                    </span>{" "}
-                    in overdue invoices.
-                  </p>
 
-                </div>
-              )}
+                      {selectedCustomer.phone && (
+                        <div>
+                          {selectedCustomer.phone}
+                        </div>
+                      )}
 
-              {/* Transactions */}
+                      {selectedCustomer.email && (
+                        <div>
+                          {selectedCustomer.email}
+                        </div>
+                      )}
 
-              <div className="overflow-hidden rounded-2xl border border-charcoal-100 bg-white shadow-sm">
-
-                <div className="border-b border-charcoal-100 p-6">
-
-                  <h3 className="text-lg font-semibold text-charcoal-900">
-                    Account Transactions
-                  </h3>
-
-                  <p className="mt-1 text-sm text-charcoal-500">
-                    Invoices and payments for the selected period.
-                  </p>
-
-                </div>
-
-                {transactions.length === 0 ? (
-                  <div className="px-6 py-16 text-center">
-
-                    <FileText className="mx-auto h-10 w-10 text-charcoal-300" />
-
-                    <p className="mt-4 text-sm font-medium text-charcoal-700">
-                      No transactions found
-                    </p>
-
-                    <p className="mt-1 text-sm text-charcoal-500">
-                      There are no invoices or payments in this period.
-                    </p>
+                      {selectedCustomer.physical_address && (
+                        <div>
+                          {selectedCustomer.physical_address}
+                        </div>
+                      )}
+                    </div>
 
                   </div>
-                ) : (
-                  <div className="overflow-x-auto">
 
-                    <table className="w-full">
+                </div>
 
-                      <thead>
+                {/* INVOICE TABLE */}
 
-                        <tr className="border-b border-charcoal-100 bg-charcoal-50 text-left">
+                <div className="w-full overflow-hidden">
 
-                          <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wide text-charcoal-500">
-                            Date
-                          </th>
+                  <table className="w-full border-collapse">
 
-                          <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wide text-charcoal-500">
-                            Type
-                          </th>
+                    <thead>
+                      <tr className="bg-[#20AEB8]">
 
-                          <th className="px-6 py-3 text-xs font-semibold uppercase tracking-wide text-charcoal-500">
-                            Reference
-                          </th>
+                        <th className="w-[30%] px-[5px] py-[7px] text-left text-[7.5px] font-bold text-white">
+                          INVOICE NO.
+                        </th>
 
-                          <th className="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wide text-charcoal-500">
-                            Debit
-                          </th>
+                        <th className="w-[23%] px-[5px] py-[7px] text-left text-[7.5px] font-bold text-white">
+                          INVOICE DATE
+                        </th>
 
-                          <th className="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wide text-charcoal-500">
-                            Credit
-                          </th>
+                        <th className="w-[23%] px-[5px] py-[7px] text-left text-[7.5px] font-bold text-white">
+                          DUE DATE
+                        </th>
 
-                          <th className="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wide text-charcoal-500">
-                            Balance
-                          </th>
+                        <th className="w-[24%] px-[5px] py-[7px] text-right text-[7.5px] font-bold text-white">
+                          AMOUNT
+                        </th>
 
-                        </tr>
+                      </tr>
+                    </thead>
 
-                      </thead>
+                    <tbody>
 
-                      <tbody className="divide-y divide-charcoal-100">
-
-                        {/* Opening */}
-
-                        <tr className="bg-charcoal-50/50">
-
-                          <td
-                            colSpan={5}
-                            className="px-6 py-4 text-sm font-medium text-charcoal-700"
+                      {displayedInvoices.map(
+                        (invoice) => (
+                          <tr
+                            key={invoice.id}
+                            className="border-b border-[#E6E6E6]"
                           >
-                            Opening Balance
-                          </td>
 
-                          <td className="px-6 py-4 text-right text-sm font-semibold text-charcoal-900">
-                            {formatCurrency(
-                              openingBalance
-                            )}
-                          </td>
+                            <td className="w-[30%] px-[5px] py-[7px] text-[7.5px]">
+                              {invoice.invoice_number}
+                            </td>
 
-                        </tr>
+                            <td className="w-[23%] px-[5px] py-[7px] text-[7.5px]">
+                              {formatDate(
+                                invoice.invoice_date
+                              )}
+                            </td>
 
-                        {transactions.map(
-                          (transaction) => (
-                            <tr
-                              key={
-                                transaction.id
-                              }
-                              className="hover:bg-charcoal-50/50"
-                            >
+                            <td className="w-[23%] px-[5px] py-[7px] text-[7.5px]">
+                              {formatDate(
+                                invoice.due_date
+                              )}
+                            </td>
 
-                              <td className="whitespace-nowrap px-6 py-4 text-sm text-charcoal-600">
-                                {formatDate(
-                                  transaction.date
-                                )}
-                              </td>
+                            <td className="w-[24%] px-[5px] py-[7px] text-right text-[7.5px]">
+                              {formatCurrency(
+                                Number(
+                                  invoice.total || 0
+                                )
+                              )}
+                            </td>
 
-                              <td className="px-6 py-4">
+                          </tr>
+                        )
+                      )}
 
-                                <span
-                                  className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
-                                    transaction.type ===
-                                    "Invoice"
-                                      ? "bg-blue-100 text-blue-700"
-                                      : "bg-green-100 text-green-700"
-                                  }`}
-                                >
-                                  {
-                                    transaction.type
-                                  }
-                                </span>
-
-                              </td>
-
-                              <td className="px-6 py-4">
-
-                                <div className="text-sm font-medium text-charcoal-900">
-                                  {
-                                    transaction.reference
-                                  }
-                                </div>
-
-                                <div className="mt-1 text-xs text-charcoal-500">
-                                  {
-                                    transaction.description
-                                  }
-                                </div>
-
-                              </td>
-
-                              <td className="px-6 py-4 text-right text-sm font-medium text-charcoal-900">
-                                {transaction.debit >
-                                0
-                                  ? formatCurrency(
-                                      transaction.debit
-                                    )
-                                  : "—"}
-                              </td>
-
-                              <td className="px-6 py-4 text-right text-sm font-medium text-green-600">
-                                {transaction.credit >
-                                0
-                                  ? formatCurrency(
-                                      transaction.credit
-                                    )
-                                  : "—"}
-                              </td>
-
-                              <td className="px-6 py-4 text-right text-sm font-semibold text-charcoal-900">
-                                {formatCurrency(
-                                  transaction.balance
-                                )}
-                              </td>
-
-                            </tr>
-                          )
-                        )}
-
-                        {/* Closing */}
-
-                        <tr className="border-t-2 border-charcoal-200 bg-charcoal-50">
-
+                      {displayedInvoices.length ===
+                        0 && (
+                        <tr>
                           <td
-                            colSpan={3}
-                            className="px-6 py-4 text-sm font-bold uppercase tracking-wide text-charcoal-900"
+                            colSpan={4}
+                            className="px-2 py-7 text-center text-[7.5px] text-gray-500"
                           >
-                            Closing Balance
+                            No invoices found for the selected period or invoice range.
                           </td>
-
-                          <td className="px-6 py-4 text-right text-sm font-semibold text-charcoal-900">
-                            {formatCurrency(
-                              totalInvoices
-                            )}
-                          </td>
-
-                          <td className="px-6 py-4 text-right text-sm font-semibold text-green-600">
-                            {formatCurrency(
-                              totalPayments
-                            )}
-                          </td>
-
-                          <td
-                            className={`px-6 py-4 text-right text-sm font-bold ${
-                              closingBalance >
-                              0
-                                ? "text-red-600"
-                                : "text-green-600"
-                            }`}
-                          >
-                            {formatCurrency(
-                              closingBalance
-                            )}
-                          </td>
-
                         </tr>
+                      )}
 
-                      </tbody>
+                    </tbody>
+                  </table>
+                </div>
 
-                    </table>
+                {/* TOTAL */}
+
+                <div className="ml-[58%] mt-[14px] w-[42%]">
+
+                  <div className="border-t border-gray-400" />
+
+                  <div className="flex justify-between border-b-2 border-[#20AEB8] py-[7px]">
+
+                    <span className="text-[10px] font-bold">
+                      TOTAL INVOICES
+                    </span>
+
+                    <span className="text-[11px] font-bold text-[#20AEB8]">
+                      {formatCurrency(
+                        totalInvoices
+                      )}
+                    </span>
 
                   </div>
-                )}
+
+                </div>
+
+                {/* FOOTER */}
+
+                <div className="mt-8 flex justify-between border-t border-[#D9DDE3] pt-2 text-[6.5px] text-gray-500">
+
+                  <div className="w-[60%]">
+                    <div className="mb-[1.5px]">
+                      Skip Co Solutions
+                    </div>
+
+                    <div>
+                      Pellesier, Bloemfontein
+                    </div>
+                  </div>
+
+                  <div className="w-[40%] text-right">
+                    <div className="mb-[1.5px]">
+                      062 737 9728
+                    </div>
+
+                    <div>
+                      ddw.trading@outlook.com
+                    </div>
+                  </div>
+
+                </div>
 
               </div>
-
             </div>
           )}
 
-        {/* =================================================
-            NO CUSTOMER
-        ================================================= */}
+        {/* NO CUSTOMER */}
 
         {!loading &&
           !loadingStatement &&
@@ -1217,9 +1634,7 @@ export default function StatementsPage() {
             <div className="rounded-2xl border border-charcoal-100 bg-white px-6 py-20 text-center shadow-sm">
 
               <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-charcoal-50">
-
                 <FileText className="h-7 w-7 text-charcoal-400" />
-
               </div>
 
               <h2 className="mt-5 text-lg font-semibold text-charcoal-900">
@@ -1227,58 +1642,13 @@ export default function StatementsPage() {
               </h2>
 
               <p className="mx-auto mt-2 max-w-md text-sm text-charcoal-500">
-                Choose a customer above to view their invoices, payments and outstanding account balance.
+                Choose a customer above to create a statement containing their invoices.
               </p>
 
             </div>
           )}
 
       </div>
-
-      {/* =====================================================
-          PRINT STYLES
-      ===================================================== */}
-
-      <style jsx global>{`
-        @media print {
-          body {
-            background: white !important;
-          }
-
-          aside,
-          nav,
-          button,
-          input,
-          select,
-          textarea,
-          #statement-print-area
-            ~ * {
-            display: none !important;
-          }
-
-          #statement-print-area {
-            display: block !important;
-            width: 100% !important;
-          }
-
-          #statement-print-area * {
-            visibility: visible !important;
-          }
-
-          .shadow-sm {
-            box-shadow: none !important;
-          }
-
-          .border {
-            border-color: #d1d5db !important;
-          }
-
-          @page {
-            size: A4;
-            margin: 12mm;
-          }
-        }
-      `}</style>
     </DashboardShell>
   );
 }

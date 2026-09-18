@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   CreditCard,
   Loader2,
   Plus,
   Trash2,
   X,
+  Search,
 } from "lucide-react";
 
 import { DashboardShell } from "@/components/layout/dashboard-shell";
@@ -54,10 +55,12 @@ export default function PaymentsPage() {
   const [customerId, setCustomerId] = useState("");
   const [paymentDate, setPaymentDate] = useState("");
   const [amount, setAmount] = useState("");
-  const [paymentMethod, setPaymentMethod] =
-    useState("EFT");
+  const [paymentMethod, setPaymentMethod] = useState("EFT");
   const [reference, setReference] = useState("");
   const [notes, setNotes] = useState("");
+
+  const [customerFilter, setCustomerFilter] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
 
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -74,26 +77,22 @@ export default function PaymentsPage() {
     setLoading(true);
     setError("");
 
-    const [
-      customersResult,
-      paymentsResult,
-    ] = await Promise.all([
-      supabase
-        .from("customers")
-        .select(
-          "id, company_name, trading_name"
-        )
-        .order("company_name", {
-          ascending: true,
-        }),
+    const [customersResult, paymentsResult] =
+      await Promise.all([
+        supabase
+          .from("customers")
+          .select("id, company_name, trading_name")
+          .order("company_name", {
+            ascending: true,
+          }),
 
-      supabase
-        .from("payments")
-        .select("*")
-        .order("payment_date", {
-          ascending: false,
-        }),
-    ]);
+        supabase
+          .from("payments")
+          .select("*")
+          .order("payment_date", {
+            ascending: false,
+          }),
+      ]);
 
     if (customersResult.error) {
       console.error(
@@ -101,13 +100,9 @@ export default function PaymentsPage() {
         customersResult.error
       );
 
-      setError(
-        "Unable to load customers."
-      );
+      setError("Unable to load customers.");
     } else {
-      setCustomers(
-        customersResult.data ?? []
-      );
+      setCustomers(customersResult.data ?? []);
     }
 
     if (paymentsResult.error) {
@@ -116,9 +111,7 @@ export default function PaymentsPage() {
         paymentsResult.error
       );
 
-      setError(
-        "Unable to load payments."
-      );
+      setError("Unable to load payments.");
     } else {
       const paymentData =
         paymentsResult.data ?? [];
@@ -394,7 +387,75 @@ export default function PaymentsPage() {
   }
 
   /* =========================================================
-     TOTAL PAYMENTS
+     FILTERED PAYMENTS
+  ========================================================= */
+
+  const filteredPayments =
+    useMemo(() => {
+      const search =
+        searchTerm
+          .trim()
+          .toLowerCase();
+
+      return payments.filter(
+        (payment) => {
+          const matchesCustomer =
+            !customerFilter ||
+            payment.customer_id ===
+              customerFilter;
+
+          if (!matchesCustomer) {
+            return false;
+          }
+
+          if (!search) {
+            return true;
+          }
+
+          const customerName =
+            payment.customer
+              ?.company_name ?? "";
+
+          const tradingName =
+            payment.customer
+              ?.trading_name ?? "";
+
+          const paymentNumber =
+            payment.payment_number ?? "";
+
+          const reference =
+            payment.reference ?? "";
+
+          const method =
+            payment.payment_method ?? "";
+
+          return (
+            customerName
+              .toLowerCase()
+              .includes(search) ||
+            tradingName
+              .toLowerCase()
+              .includes(search) ||
+            paymentNumber
+              .toLowerCase()
+              .includes(search) ||
+            reference
+              .toLowerCase()
+              .includes(search) ||
+            method
+              .toLowerCase()
+              .includes(search)
+          );
+        }
+      );
+    }, [
+      payments,
+      customerFilter,
+      searchTerm,
+    ]);
+
+  /* =========================================================
+     TOTALS
   ========================================================= */
 
   const totalPayments =
@@ -405,6 +466,27 @@ export default function PaymentsPage() {
           payment.amount || 0
         ),
       0
+    );
+
+  const filteredTotal =
+    filteredPayments.reduce(
+      (sum, payment) =>
+        sum +
+        Number(
+          payment.amount || 0
+        ),
+      0
+    );
+
+  /* =========================================================
+     SELECTED CUSTOMER
+  ========================================================= */
+
+  const selectedFilterCustomer =
+    customers.find(
+      (customer) =>
+        customer.id ===
+        customerFilter
     );
 
   /* =========================================================
@@ -449,10 +531,42 @@ export default function PaymentsPage() {
         )}
 
         {/* =================================================
+            STATEMENT WORKFLOW INFO
+        ================================================= */}
+
+        <div className="rounded-2xl border border-[#20AEB8]/20 bg-[#20AEB8]/5 p-5">
+
+          <div className="flex items-start gap-3">
+
+            <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#20AEB8]/10">
+              <CreditCard className="h-5 w-5 text-[#20AEB8]" />
+            </div>
+
+            <div>
+
+              <h2 className="text-sm font-semibold text-charcoal-900">
+                Customer Payments
+              </h2>
+
+              <p className="mt-1 text-sm leading-6 text-charcoal-600">
+                Payments are recorded against the customer.
+                They will automatically appear on that
+                customer&apos;s statement according to the
+                payment date. A single payment can therefore
+                cover multiple invoices.
+              </p>
+
+            </div>
+
+          </div>
+
+        </div>
+
+        {/* =================================================
             SUMMARY
         ================================================= */}
 
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-4 md:grid-cols-3">
 
           <div className="rounded-2xl border border-charcoal-100 bg-white p-5 shadow-sm">
 
@@ -480,26 +594,42 @@ export default function PaymentsPage() {
 
           </div>
 
+          <div className="rounded-2xl border border-charcoal-100 bg-white p-5 shadow-sm">
+
+            <p className="text-sm text-charcoal-500">
+              Displayed Payments
+            </p>
+
+            <p className="mt-2 text-2xl font-bold text-charcoal-900">
+              {filteredPayments.length}
+            </p>
+
+            <p className="mt-1 text-xs text-charcoal-500">
+              {formatCurrency(
+                filteredTotal
+              )}
+            </p>
+
+          </div>
+
         </div>
 
         {/* =================================================
-            ADD PAYMENT BUTTON
+            SINGLE ADD PAYMENT BUTTON
         ================================================= */}
 
-        {!showForm && (
-          <div className="flex justify-end">
+        <div className="flex justify-end">
 
-            <button
-              type="button"
-              onClick={openForm}
-              className="inline-flex items-center gap-2 rounded-lg bg-charcoal-900 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-charcoal-800"
-            >
-              <Plus className="h-4 w-4" />
-              Add Payment
-            </button>
+          <button
+            type="button"
+            onClick={openForm}
+            className="inline-flex items-center gap-2 rounded-lg bg-charcoal-900 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-charcoal-800"
+          >
+            <Plus className="h-4 w-4" />
+            Add Payment
+          </button>
 
-          </div>
-        )}
+        </div>
 
         {/* =================================================
             PAYMENT FORM
@@ -518,6 +648,8 @@ export default function PaymentsPage() {
 
                 <p className="mt-1 text-sm text-charcoal-500">
                   Record a payment received from a customer.
+                  The payment will be included on the
+                  customer&apos;s statements.
                 </p>
 
               </div>
@@ -567,11 +699,19 @@ export default function PaymentsPage() {
                         value={customer.id}
                       >
                         {customer.company_name}
+                        {customer.trading_name
+                          ? ` — ${customer.trading_name}`
+                          : ""}
                       </option>
                     )
                   )}
 
                 </select>
+
+                <p className="mt-1.5 text-xs text-charcoal-500">
+                  This payment will be recorded against
+                  this customer&apos;s account.
+                </p>
 
               </div>
 
@@ -611,20 +751,28 @@ export default function PaymentsPage() {
                   Amount *
                 </label>
 
-                <input
-                  id="payment-amount"
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  value={amount}
-                  onChange={(event) =>
-                    setAmount(
-                      event.target.value
-                    )
-                  }
-                  placeholder="0.00"
-                  className="w-full rounded-lg border border-charcoal-200 bg-white px-3 py-2.5 text-sm text-charcoal-900 outline-none focus:border-charcoal-400 focus:ring-2 focus:ring-charcoal-100"
-                />
+                <div className="relative">
+
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium text-charcoal-500">
+                    R
+                  </span>
+
+                  <input
+                    id="payment-amount"
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    value={amount}
+                    onChange={(event) =>
+                      setAmount(
+                        event.target.value
+                      )
+                    }
+                    placeholder="0.00"
+                    className="w-full rounded-lg border border-charcoal-200 bg-white py-2.5 pl-8 pr-3 text-sm text-charcoal-900 outline-none focus:border-charcoal-400 focus:ring-2 focus:ring-charcoal-100"
+                  />
+
+                </div>
 
               </div>
 
@@ -755,20 +903,140 @@ export default function PaymentsPage() {
         )}
 
         {/* =================================================
-            PAYMENTS TABLE
+            PAYMENT HISTORY
         ================================================= */}
 
         <div className="overflow-hidden rounded-2xl border border-charcoal-100 bg-white shadow-sm">
 
           <div className="border-b border-charcoal-100 p-6">
 
-            <h2 className="text-lg font-semibold text-charcoal-900">
-              Payment History
-            </h2>
+            <div>
 
-            <p className="mt-1 text-sm text-charcoal-500">
-              Payments received from your customers.
-            </p>
+              <h2 className="text-lg font-semibold text-charcoal-900">
+                Payment History
+              </h2>
+
+              <p className="mt-1 text-sm text-charcoal-500">
+                Payments received from your customers.
+              </p>
+
+            </div>
+
+            {/* FILTERS */}
+
+            <div className="mt-5 grid gap-3 md:grid-cols-2">
+
+              {/* CUSTOMER FILTER */}
+
+              <div>
+
+                <label
+                  htmlFor="customer-filter"
+                  className="mb-2 block text-xs font-semibold uppercase tracking-wide text-charcoal-500"
+                >
+                  Customer
+                </label>
+
+                <select
+                  id="customer-filter"
+                  value={customerFilter}
+                  onChange={(event) =>
+                    setCustomerFilter(
+                      event.target.value
+                    )
+                  }
+                  className="w-full rounded-lg border border-charcoal-200 bg-white px-3 py-2.5 text-sm text-charcoal-900 outline-none focus:border-charcoal-400 focus:ring-2 focus:ring-charcoal-100"
+                >
+                  <option value="">
+                    All Customers
+                  </option>
+
+                  {customers.map(
+                    (customer) => (
+                      <option
+                        key={customer.id}
+                        value={customer.id}
+                      >
+                        {customer.company_name}
+                      </option>
+                    )
+                  )}
+
+                </select>
+
+              </div>
+
+              {/* SEARCH */}
+
+              <div>
+
+                <label
+                  htmlFor="payment-search"
+                  className="mb-2 block text-xs font-semibold uppercase tracking-wide text-charcoal-500"
+                >
+                  Search
+                </label>
+
+                <div className="relative">
+
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-charcoal-400" />
+
+                  <input
+                    id="payment-search"
+                    type="text"
+                    value={searchTerm}
+                    onChange={(event) =>
+                      setSearchTerm(
+                        event.target.value
+                      )
+                    }
+                    placeholder="Payment number, reference, customer..."
+                    className="w-full rounded-lg border border-charcoal-200 bg-white py-2.5 pl-9 pr-3 text-sm text-charcoal-900 outline-none focus:border-charcoal-400 focus:ring-2 focus:ring-charcoal-100"
+                  />
+
+                </div>
+
+              </div>
+
+            </div>
+
+            {/* FILTER SUMMARY */}
+
+            {(customerFilter ||
+              searchTerm) && (
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-charcoal-50 px-4 py-3">
+
+                <div className="text-sm text-charcoal-600">
+
+                  {selectedFilterCustomer ? (
+                    <>
+                      Showing payments for{" "}
+                      <span className="font-semibold text-charcoal-900">
+                        {
+                          selectedFilterCustomer.company_name
+                        }
+                      </span>
+                    </>
+                  ) : (
+                    "Showing filtered payments"
+                  )}
+
+                </div>
+
+                <div className="text-sm font-semibold text-charcoal-900">
+                  {filteredPayments.length} payment
+                  {filteredPayments.length ===
+                  1
+                    ? ""
+                    : "s"}{" "}
+                  ·{" "}
+                  {formatCurrency(
+                    filteredTotal
+                  )}
+                </div>
+
+              </div>
+            )}
 
           </div>
 
@@ -795,17 +1063,26 @@ export default function PaymentsPage() {
 
               <p className="mt-1 max-w-md text-sm text-charcoal-500">
                 Record your first customer payment
-                to start tracking received payments.
+                using the Add Payment button above.
               </p>
 
-              <button
-                type="button"
-                onClick={openForm}
-                className="mt-5 inline-flex items-center gap-2 rounded-lg bg-charcoal-900 px-4 py-2 text-sm font-medium text-white hover:bg-charcoal-800"
-              >
-                <Plus className="h-4 w-4" />
-                Add Payment
-              </button>
+            </div>
+          ) : filteredPayments.length ===
+            0 ? (
+            <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
+
+              <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-charcoal-50">
+                <Search className="h-6 w-6 text-charcoal-400" />
+              </div>
+
+              <h3 className="text-base font-semibold text-charcoal-900">
+                No matching payments
+              </h3>
+
+              <p className="mt-1 max-w-md text-sm text-charcoal-500">
+                Try changing the customer filter
+                or search term.
+              </p>
 
             </div>
           ) : (
@@ -849,7 +1126,7 @@ export default function PaymentsPage() {
 
                 <tbody className="divide-y divide-charcoal-100">
 
-                  {payments.map(
+                  {filteredPayments.map(
                     (payment) => (
                       <tr
                         key={payment.id}

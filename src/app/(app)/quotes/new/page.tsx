@@ -1,150 +1,204 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { ArrowLeft, Plus, Save, Trash2 } from "lucide-react";
 
 import { DashboardShell } from "@/components/layout/dashboard-shell";
-
 import CustomerSelector from "@/components/quotes/customer-selector";
-import ProductSelector from "@/components/quotes/product-selector";
-import QuoteLine from "@/components/quotes/quote-line";
-
 import { createClient } from "@/lib/supabase/client";
 
-interface Customer {
+type Customer = {
   id: string;
-  customer_number: string;
-  company_name: string;
-  contact_person: string;
-  email: string;
-  phone: string;
-  physical_address: string;
-}
+  customer_number?: string | null;
+  company_name: string | null;
+  trading_name?: string | null;
+  contact_person: string | null;
+  email: string | null;
+  phone: string | null;
+  mobile?: string | null;
+  physical_address: string | null;
+};
 
-interface Product {
+type Product = {
   id: string;
-  product_code: string;
-  product_name: string;
-  description: string;
-  selling_price: number;
-  type: string;
-}
+  product_code: string | null;
+  product_name: string | null;
+  description: string | null;
+  category: string | null;
+  type: string | null;
+  unit: string | null;
+  selling_price: number | null;
+  vat_rate: number | null;
+  status: string | null;
+};
 
-interface QuoteItem {
-  product_id: string;
+type EditableItem = {
   description: string;
   quantity: number;
   unit_price: number;
-}
+};
 
 export default function NewQuotePage() {
   const router = useRouter();
-  const supabase = createClient();
 
-  const [saving, setSaving] = useState(false);
+  const [customer, setCustomer] = useState<Customer | null>(null);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [items, setItems] = useState<EditableItem[]>([]);
 
-  const [customer, setCustomer] =
-    useState<Customer | null>(null);
+  const [quoteDate, setQuoteDate] = useState(
+    new Date().toISOString().split("T")[0]
+  );
+
+  const [validUntil, setValidUntil] = useState(() => {
+    const date = new Date();
+    date.setDate(date.getDate() + 30);
+    return date.toISOString().split("T")[0];
+  });
 
   const [site, setSite] = useState("");
-
   const [notes, setNotes] = useState("");
+  const [status] = useState("Draft");
 
-  const [quoteItems, setQuoteItems] =
-    useState<QuoteItem[]>([]);
+  const [vatEnabled, setVatEnabled] = useState(false);
+  const [vatRate, setVatRate] = useState(15);
 
-  /*
-   * VAT SETTINGS
-   */
+  const [loadingProducts, setLoadingProducts] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
-  const [vatEnabled, setVatEnabled] =
-    useState(false);
+  useEffect(() => {
+    const loadProducts = async () => {
+      setLoadingProducts(true);
+      setError("");
 
-  const [vatRate, setVatRate] =
-    useState(15);
+      try {
+        const supabase = createClient();
 
-  /*
-   * DATES
-   */
+        const { data, error: productError } = await supabase
+          .from("products")
+          .select(`
+            id,
+            product_code,
+            product_name,
+            description,
+            category,
+            type,
+            unit,
+            selling_price,
+            vat_rate,
+            status
+          `)
+          .order("product_name", { ascending: true });
 
-  const quoteDate =
-    new Date().toISOString().split("T")[0];
+        if (productError) {
+          throw productError;
+        }
 
-  const validUntil = (() => {
-    const date = new Date();
+        setProducts((data ?? []) as Product[]);
+      } catch (err) {
+        console.error("Error loading products:", err);
 
-    date.setDate(date.getDate() + 30);
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Unable to load products and services."
+        );
+      } finally {
+        setLoadingProducts(false);
+      }
+    };
 
-    return date.toISOString().split("T")[0];
-  })();
+    loadProducts();
+  }, []);
 
-  /*
-   * ADD PRODUCT
-   */
-
-  function addProduct(product: Product) {
-    setQuoteItems((prev) => [
-      ...prev,
+  const addItem = () => {
+    setItems((currentItems) => [
+      ...currentItems,
       {
-        product_id: product.id,
-        description:
-          product.description ||
-          product.product_name,
+        description: "",
         quantity: 1,
-        unit_price:
-          Number(product.selling_price),
+        unit_price: 0,
       },
     ]);
-  }
+  };
 
-  /*
-   * UPDATE QUOTE ITEM
-   */
-
-  function updateItem(
+  const selectProduct = (
     index: number,
-    field: keyof QuoteItem,
-    value: string | number
-  ) {
-    setQuoteItems((prev) =>
-      prev.map((item, i) =>
-        i === index
-          ? {
-              ...item,
-              [field]: value,
-            }
-          : item
+    productId: string
+  ) => {
+    const product = products.find(
+      (item) => item.id === productId
+    );
+
+    if (!product) {
+      return;
+    }
+
+    const productName =
+      product.product_name?.trim() ||
+      product.description?.trim() ||
+      "";
+
+    setItems((currentItems) =>
+      currentItems.map((item, itemIndex) => {
+        if (itemIndex !== index) {
+          return item;
+        }
+
+        return {
+          ...item,
+          description: productName,
+          unit_price: Number(product.selling_price ?? 0),
+        };
+      })
+    );
+  };
+
+  const updateItem = (
+    index: number,
+    field: "quantity" | "unit_price",
+    value: number
+  ) => {
+    setItems((currentItems) =>
+      currentItems.map((item, itemIndex) => {
+        if (itemIndex !== index) {
+          return item;
+        }
+
+        return {
+          ...item,
+          [field]: value,
+        };
+      })
+    );
+  };
+
+  const removeItem = (index: number) => {
+    setItems((currentItems) =>
+      currentItems.filter(
+        (_, itemIndex) => itemIndex !== index
       )
     );
-  }
+  };
 
-  /*
-   * REMOVE QUOTE ITEM
-   */
-
-  function removeItem(index: number) {
-    setQuoteItems((prev) =>
-      prev.filter((_, i) => i !== index)
+  const calculateItemTotal = (
+    item: EditableItem
+  ) => {
+    return (
+      Number(item.quantity || 0) *
+      Number(item.unit_price || 0)
     );
-  }
-
-  /*
-   * SUBTOTAL
-   */
+  };
 
   const subtotal = useMemo(() => {
-    return quoteItems.reduce(
-      (total, item) =>
-        total +
-        Number(item.quantity) *
-          Number(item.unit_price),
+    return items.reduce(
+      (sum, item) =>
+        sum + calculateItemTotal(item),
       0
     );
-  }, [quoteItems]);
-
-  /*
-   * VAT
-   */
+  }, [items]);
 
   const vatAmount = useMemo(() => {
     if (!vatEnabled) {
@@ -154,21 +208,31 @@ export default function NewQuotePage() {
     return subtotal * (Number(vatRate) / 100);
   }, [subtotal, vatEnabled, vatRate]);
 
-  /*
-   * TOTAL
-   */
+  const total = subtotal + vatAmount;
 
-  const total = useMemo(() => {
-    return subtotal + vatAmount;
-  }, [subtotal, vatAmount]);
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat("en-ZA", {
+      style: "currency",
+      currency: "ZAR",
+      minimumFractionDigits: 2,
+    }).format(value);
+  };
 
-  /*
-   * SAVE QUOTE
-   */
+  const saveQuote = async () => {
+    setError("");
 
-  async function saveQuote() {
     if (!customer) {
-      alert("Please select a customer.");
+      setError("Please select a customer.");
+      return;
+    }
+
+    if (!quoteDate) {
+      setError("Please enter a quote date.");
+      return;
+    }
+
+    if (!validUntil) {
+      setError("Please enter a valid until date.");
       return;
     }
 
@@ -177,133 +241,183 @@ export default function NewQuotePage() {
       (Number(vatRate) < 0 ||
         Number(vatRate) > 100)
     ) {
-      alert(
+      setError(
         "Please enter a valid VAT rate between 0% and 100%."
       );
       return;
     }
 
-    setSaving(true);
+    for (const item of items) {
+      if (!item.description.trim()) {
+        setError(
+          "Every quote item needs a product or service."
+        );
+        return;
+      }
 
-    /*
-     * CREATE QUOTE
-     */
+      if (Number(item.quantity) <= 0) {
+        setError(
+          "Quantity must be greater than zero."
+        );
+        return;
+      }
 
-    const { data: quote, error } =
-      await supabase
-        .from("quotes")
-        .insert({
-          customer_id: customer.id,
-          quote_date: quoteDate,
-          valid_until: validUntil,
-
-          site: site.trim() || null,
-
-          subtotal: subtotal,
-          total: total,
-          notes: notes.trim() || null,
-          status: "Draft",
-
-          /*
-           * VAT
-           */
-
-          vat_enabled: vatEnabled,
-          vat_rate: vatEnabled
-            ? Number(vatRate)
-            : 0,
-        })
-        .select()
-        .single();
-
-    if (error || !quote) {
-      console.error(error);
-
-      alert(
-        error?.message ??
-          "Failed to create quote."
-      );
-
-      setSaving(false);
-      return;
-    }
-
-    /*
-     * CREATE QUOTE ITEMS
-     */
-
-    if (quoteItems.length > 0) {
-      const quoteLines = quoteItems.map(
-        (item) => ({
-          quote_id: quote.id,
-          product_id: item.product_id,
-          description: item.description,
-          quantity: Number(item.quantity),
-          unit_price: Number(item.unit_price),
-          line_total:
-            Number(item.quantity) *
-            Number(item.unit_price),
-        })
-      );
-
-      const { error: itemError } =
-        await supabase
-          .from("quote_items")
-          .insert(quoteLines);
-
-      if (itemError) {
-        console.error(itemError);
-
-        alert(itemError.message);
-
-        setSaving(false);
+      if (Number(item.unit_price) < 0) {
+        setError(
+          "Unit price cannot be negative."
+        );
         return;
       }
     }
 
-    /*
-     * GO TO QUOTE
-     */
+    setSaving(true);
 
-    router.push(
-      `/quotes/${quote.id}`
-    );
-  }
+    try {
+      const supabase = createClient();
+
+      const { data: quote, error: quoteError } =
+        await supabase
+          .from("quotes")
+          .insert({
+            customer_id: customer.id,
+            quote_date: quoteDate,
+            valid_until: validUntil,
+            site: site.trim() || null,
+            subtotal,
+            total,
+            vat_enabled: vatEnabled,
+            vat_rate: vatEnabled
+              ? Number(vatRate)
+              : 0,
+            status,
+            notes: notes.trim() || null,
+          })
+          .select()
+          .single();
+
+      if (quoteError) {
+        throw quoteError;
+      }
+
+      if (!quote) {
+        throw new Error(
+          "Quote could not be created."
+        );
+      }
+
+      if (items.length > 0) {
+        const itemsToInsert = items.map(
+          (item) => {
+            const quantity = Number(
+              item.quantity || 0
+            );
+
+            const unitPrice = Number(
+              item.unit_price || 0
+            );
+
+            return {
+              quote_id: quote.id,
+              description:
+                item.description.trim(),
+              quantity,
+              unit_price: unitPrice,
+              total: quantity * unitPrice,
+            };
+          }
+        );
+
+        const { error: itemsError } =
+          await supabase
+            .from("quote_items")
+            .insert(itemsToInsert);
+
+        if (itemsError) {
+          throw itemsError;
+        }
+      }
+
+      alert("Quote created successfully!");
+
+      router.push(`/quotes/${quote.id}`);
+      router.refresh();
+    } catch (err) {
+      console.error(
+        "Error creating quote:",
+        err
+      );
+
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Unable to create the quote."
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
-    <DashboardShell
-      title="New Quote"
-      subtitle="Create a customer quotation"
-    >
-      <div className="mx-auto max-w-6xl p-4 sm:p-6">
+    <DashboardShell>
+      <div className="mx-auto w-full max-w-6xl p-4 sm:p-6">
 
-        {/* ===================================================== */}
         {/* PAGE HEADER */}
-        {/* ===================================================== */}
 
-        <div className="mb-6">
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 
-          <h1 className="text-2xl font-bold text-charcoal-900">
-            New Quote
-          </h1>
+          <div>
+            <Link
+              href="/quotes"
+              className="mb-3 inline-flex items-center gap-2 text-sm text-charcoal-500 hover:text-charcoal-900"
+            >
+              <ArrowLeft size={16} />
+              Back to Quotes
+            </Link>
 
-          <p className="mt-1 text-sm text-charcoal-500">
-            Create a customer quotation
-          </p>
+            <h1 className="text-2xl font-bold text-charcoal-900">
+              New Quote
+            </h1>
+
+            <p className="mt-1 text-sm text-charcoal-500">
+              Create a customer quotation
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={saveQuote}
+            disabled={saving}
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-charcoal-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-charcoal-800 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Save size={17} />
+            {saving
+              ? "Creating..."
+              : "Create Quote"}
+          </button>
 
         </div>
 
-        <div className="grid gap-8 lg:grid-cols-3">
+        {error && (
+          <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            <p className="font-semibold">
+              Unable to create quote
+            </p>
 
-          {/* =================================================== */}
-          {/* LEFT COLUMN */}
-          {/* =================================================== */}
+            <p className="mt-1 break-words">
+              {error}
+            </p>
+          </div>
+        )}
 
-          <div className="space-y-8 lg:col-span-2">
+        <div className="space-y-6">
 
-            {/* ================================================= */}
-            {/* CUSTOMER */}
-            {/* ================================================= */}
+          {/* CUSTOMER */}
+
+          <section className="rounded-xl border border-charcoal-100 bg-white p-5 shadow-sm">
+
+            <h2 className="mb-4 text-lg font-semibold text-charcoal-900">
+              Customer
+            </h2>
 
             <CustomerSelector
               value={customer?.id ?? ""}
@@ -315,83 +429,82 @@ export default function NewQuotePage() {
               }
             />
 
-            {/* ================================================= */}
-            {/* QUOTE DETAILS */}
-            {/* ================================================= */}
+          </section>
 
-            <div className="rounded-xl border border-charcoal-100 bg-white p-6 shadow-sm">
+          {/* QUOTE DETAILS */}
 
-              <h2 className="mb-6 text-xl font-bold text-charcoal-900">
-                Quote Details
-              </h2>
+          <section className="rounded-xl border border-charcoal-100 bg-white p-5 shadow-sm">
 
-              <div className="grid gap-5 md:grid-cols-3">
+            <h2 className="mb-4 text-lg font-semibold text-charcoal-900">
+              Quote Details
+            </h2>
 
-                {/* QUOTE DATE */}
+            <div className="grid gap-4 sm:grid-cols-3">
 
-                <div>
-                  <label
-                    htmlFor="quote-date"
-                    className="mb-1 block text-sm font-medium text-charcoal-700"
-                  >
-                    Quote Date
-                  </label>
+              <div>
+                <label
+                  htmlFor="quote-number"
+                  className="mb-1 block text-sm font-medium text-charcoal-700"
+                >
+                  Quote Number
+                </label>
 
-                  <input
-                    id="quote-date"
-                    type="date"
-                    value={quoteDate}
-                    readOnly
-                    className="w-full rounded-lg border border-charcoal-200 bg-gray-50 px-3 py-2.5 text-sm text-charcoal-700 outline-none"
-                  />
-                </div>
-
-                {/* VALID UNTIL */}
-
-                <div>
-                  <label
-                    htmlFor="valid-until"
-                    className="mb-1 block text-sm font-medium text-charcoal-700"
-                  >
-                    Valid Until
-                  </label>
-
-                  <input
-                    id="valid-until"
-                    type="date"
-                    value={validUntil}
-                    readOnly
-                    className="w-full rounded-lg border border-charcoal-200 bg-gray-50 px-3 py-2.5 text-sm text-charcoal-700 outline-none"
-                  />
-                </div>
-
-                {/* STATUS */}
-
-                <div>
-                  <label
-                    htmlFor="status"
-                    className="mb-1 block text-sm font-medium text-charcoal-700"
-                  >
-                    Status
-                  </label>
-
-                  <input
-                    id="status"
-                    type="text"
-                    value="Draft"
-                    readOnly
-                    className="w-full rounded-lg border border-charcoal-200 bg-gray-50 px-3 py-2.5 text-sm text-charcoal-700 outline-none"
-                  />
-                </div>
-
+                <input
+                  id="quote-number"
+                  type="text"
+                  value="Generated on save"
+                  disabled
+                  className="w-full rounded-lg border border-charcoal-200 bg-charcoal-50 px-3 py-2.5 text-sm text-charcoal-500"
+                />
               </div>
 
-              {/* ================================================= */}
-              {/* SITE SECTION */}
-              {/* ================================================= */}
+              <div>
+                <label
+                  htmlFor="quote-date"
+                  className="mb-1 block text-sm font-medium text-charcoal-700"
+                >
+                  Quote Date
+                </label>
 
-              <div className="mt-5">
+                <input
+                  id="quote-date"
+                  type="date"
+                  value={quoteDate}
+                  onChange={(event) =>
+                    setQuoteDate(
+                      event.target.value
+                    )
+                  }
+                  className="w-full rounded-lg border border-charcoal-200 px-3 py-2.5 text-sm outline-none focus:border-charcoal-500"
+                />
+              </div>
 
+              <div>
+                <label
+                  htmlFor="valid-until"
+                  className="mb-1 block text-sm font-medium text-charcoal-700"
+                >
+                  Valid Until
+                </label>
+
+                <input
+                  id="valid-until"
+                  type="date"
+                  value={validUntil}
+                  onChange={(event) =>
+                    setValidUntil(
+                      event.target.value
+                    )
+                  }
+                  className="w-full rounded-lg border border-charcoal-200 px-3 py-2.5 text-sm outline-none focus:border-charcoal-500"
+                />
+              </div>
+
+            </div>
+
+            <div className="mt-5 grid gap-4 sm:grid-cols-2">
+
+              <div>
                 <label
                   htmlFor="site"
                   className="mb-1 block text-sm font-medium text-charcoal-700"
@@ -413,76 +526,237 @@ export default function NewQuotePage() {
                 <p className="mt-1 text-xs text-charcoal-400">
                   Enter the site or section this quote relates to.
                 </p>
+              </div>
 
+              <div>
+                <label
+                  htmlFor="status"
+                  className="mb-1 block text-sm font-medium text-charcoal-700"
+                >
+                  Status
+                </label>
+
+                <input
+                  id="status"
+                  type="text"
+                  value="Draft"
+                  disabled
+                  className="w-full rounded-lg border border-charcoal-200 bg-charcoal-50 px-3 py-2.5 text-sm text-charcoal-500"
+                />
               </div>
 
             </div>
 
-            {/* ================================================= */}
-            {/* PRODUCTS */}
-            {/* ================================================= */}
+          </section>
 
-            <ProductSelector
-              onSelect={(product) =>
-                addProduct(
-                  product as Product
-                )
-              }
-            />
+          {/* QUOTE ITEMS */}
 
-            {/* ================================================= */}
-            {/* QUOTE ITEMS */}
-            {/* ================================================= */}
+          <section className="rounded-xl border border-charcoal-100 bg-white p-5 shadow-sm">
 
-            <div className="rounded-xl border border-charcoal-100 bg-white p-6 shadow-sm">
+            <div className="mb-4 flex items-center justify-between">
 
-              <div className="mb-6 flex items-center justify-between">
-
-                <h2 className="text-xl font-bold text-charcoal-900">
+              <div>
+                <h2 className="text-lg font-semibold text-charcoal-900">
                   Quote Items
                 </h2>
 
-                {quoteItems.length > 0 && (
-                  <span className="text-sm text-charcoal-500">
-                    {quoteItems.length}{" "}
-                    {quoteItems.length === 1
-                      ? "item"
-                      : "items"}
-                  </span>
-                )}
-
+                <p className="mt-1 text-sm text-charcoal-500">
+                  Select products or services from your Products & Services list.
+                </p>
               </div>
 
-              {quoteItems.length === 0 ? (
+              <button
+                type="button"
+                onClick={addItem}
+                className="inline-flex items-center gap-2 rounded-lg border border-charcoal-200 px-3 py-2 text-sm font-medium text-charcoal-700 hover:bg-charcoal-50"
+              >
+                <Plus size={16} />
+                Add Item
+              </button>
 
-                <div className="rounded-lg border border-dashed border-charcoal-200 p-10 text-center text-charcoal-500">
+            </div>
 
-                  No products added yet.
+            {loadingProducts && (
+              <div className="mb-4 rounded-lg bg-charcoal-50 p-4 text-sm text-charcoal-500">
+                Loading products and services...
+              </div>
+            )}
 
-                  <p className="mt-2 text-sm">
-                    Select a product above to add
-                    it to the quote.
-                  </p>
+            <div className="space-y-4">
+
+              {items.map((item, index) => (
+
+                <div
+                  key={`new-${index}`}
+                  className="rounded-lg border border-charcoal-100 bg-charcoal-50 p-4"
+                >
+
+                  <div className="grid gap-4 md:grid-cols-[1fr_120px_160px_40px] md:items-end">
+
+                    {/* PRODUCT */}
+
+                    <div>
+
+                      <label
+                        htmlFor={`product-${index}`}
+                        className="mb-1 block text-xs font-medium uppercase tracking-wide text-charcoal-500"
+                      >
+                        Product / Service
+                      </label>
+
+                      <select
+                        id={`product-${index}`}
+                        defaultValue=""
+                        onChange={(event) =>
+                          selectProduct(
+                            index,
+                            event.target.value
+                          )
+                        }
+                        className="w-full rounded-lg border border-charcoal-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-charcoal-500"
+                      >
+
+                        <option value="">
+                          Select product / service
+                        </option>
+
+                        {products.map(
+                          (product) => (
+                            <option
+                              key={product.id}
+                              value={product.id}
+                            >
+                              {product.product_name ||
+                                product.description ||
+                                "Unnamed Product"}
+                              {product.unit
+                                ? ` — ${product.unit}`
+                                : ""}
+                            </option>
+                          )
+                        )}
+
+                      </select>
+
+                      {item.description && (
+                        <p className="mt-2 text-sm text-charcoal-700">
+
+                          <span className="font-medium">
+                            Description:
+                          </span>{" "}
+
+                          {item.description}
+
+                        </p>
+                      )}
+
+                    </div>
+
+                    {/* QUANTITY */}
+
+                    <div>
+
+                      <label
+                        htmlFor={`quantity-${index}`}
+                        className="mb-1 block text-xs font-medium uppercase tracking-wide text-charcoal-500"
+                      >
+                        Quantity
+                      </label>
+
+                      <input
+                        id={`quantity-${index}`}
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        value={item.quantity}
+                        onChange={(event) =>
+                          updateItem(
+                            index,
+                            "quantity",
+                            Number(
+                              event.target.value
+                            )
+                          )
+                        }
+                        className="w-full rounded-lg border border-charcoal-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-charcoal-500"
+                      />
+
+                    </div>
+
+                    {/* UNIT PRICE */}
+
+                    <div>
+
+                      <label
+                        htmlFor={`price-${index}`}
+                        className="mb-1 block text-xs font-medium uppercase tracking-wide text-charcoal-500"
+                      >
+                        Unit Price
+                      </label>
+
+                      <input
+                        id={`price-${index}`}
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={item.unit_price}
+                        onChange={(event) =>
+                          updateItem(
+                            index,
+                            "unit_price",
+                            Number(
+                              event.target.value
+                            )
+                          )
+                        }
+                        className="w-full rounded-lg border border-charcoal-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-charcoal-500"
+                      />
+
+                    </div>
+
+                    {/* DELETE */}
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        removeItem(index)
+                      }
+                      title="Remove item"
+                      className="flex h-10 w-10 items-center justify-center rounded-lg text-red-500 hover:bg-red-50 hover:text-red-700"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+
+                  </div>
+
+                  <div className="mt-3 text-right text-sm font-semibold text-charcoal-700">
+                    Item Total:{" "}
+                    {formatCurrency(
+                      calculateItemTotal(
+                        item
+                      )
+                    )}
+                  </div>
 
                 </div>
 
-              ) : (
+              ))}
 
-                <div className="space-y-6">
+              {items.length === 0 && (
 
-                  {quoteItems.map(
-                    (item, index) => (
+                <div className="rounded-lg border border-dashed border-charcoal-200 p-8 text-center">
 
-                      <QuoteLine
-                        key={index}
-                        line={item}
-                        index={index}
-                        onChange={updateItem}
-                        onRemove={removeItem}
-                      />
+                  <p className="text-sm text-charcoal-500">
+                    No quote items.
+                  </p>
 
-                    )
-                  )}
+                  <button
+                    type="button"
+                    onClick={addItem}
+                    className="mt-3 text-sm font-semibold text-charcoal-900 underline"
+                  >
+                    Add your first item
+                  </button>
 
                 </div>
 
@@ -490,309 +764,210 @@ export default function NewQuotePage() {
 
             </div>
 
-            {/* ================================================= */}
+          </section>
+
+          {/* NOTES + TOTALS */}
+
+          <section className="grid gap-6 lg:grid-cols-2">
+
             {/* NOTES */}
-            {/* ================================================= */}
 
-            <div className="rounded-xl border border-charcoal-100 bg-white p-6 shadow-sm">
+            <div className="rounded-xl border border-charcoal-100 bg-white p-5 shadow-sm">
 
-              <h2 className="mb-4 text-xl font-bold text-charcoal-900">
+              <h2 className="mb-4 text-lg font-semibold text-charcoal-900">
                 Notes
               </h2>
 
               <textarea
-                rows={5}
                 value={notes}
-                onChange={(e) =>
+                onChange={(event) =>
                   setNotes(
-                    e.target.value
+                    event.target.value
                   )
                 }
-                placeholder="Notes for the customer..."
-                className="w-full rounded-lg border border-charcoal-200 px-4 py-3 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                rows={7}
+                placeholder="Add notes to this quote..."
+                className="w-full rounded-lg border border-charcoal-200 px-3 py-2.5 text-sm outline-none focus:border-charcoal-500"
               />
 
             </div>
 
-          </div>
+            {/* TOTALS */}
 
-          {/* =================================================== */}
-          {/* RIGHT COLUMN */}
-          {/* =================================================== */}
+            <div className="rounded-xl border border-charcoal-100 bg-white p-5 shadow-sm">
 
-          <div>
+              <div className="mb-4 flex items-center justify-between">
 
-            <div className="sticky top-6 rounded-xl border border-charcoal-100 bg-white p-6 shadow-sm">
+                <h2 className="text-lg font-semibold text-charcoal-900">
+                  Totals
+                </h2>
 
-              <h2 className="mb-6 text-xl font-bold text-charcoal-900">
-                Quote Summary
-              </h2>
-
-              <div className="space-y-5">
-
-                {/* ================================================= */}
-                {/* CUSTOMER */}
-                {/* ================================================= */}
-
-                {customer && (
-
-                  <div className="rounded-lg bg-blue-50 p-4">
-
-                    <div className="font-semibold text-charcoal-900">
-                      {customer.company_name}
-                    </div>
-
-                    {customer.contact_person && (
-                      <div className="text-sm text-gray-600">
-                        {customer.contact_person}
-                      </div>
-                    )}
-
-                    {customer.phone && (
-                      <div className="text-sm text-gray-600">
-                        {customer.phone}
-                      </div>
-                    )}
-
-                    {customer.email && (
-                      <div className="text-sm text-gray-600">
-                        {customer.email}
-                      </div>
-                    )}
-
-                  </div>
-
-                )}
-
-                {/* ================================================= */}
-                {/* SITE */}
-                {/* ================================================= */}
-
-                {site.trim() && (
-
-                  <div className="rounded-lg border border-charcoal-100 bg-gray-50 p-4">
-
-                    <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
-                      Site Section
-                    </p>
-
-                    <p className="mt-1 font-medium text-charcoal-900">
-                      {site}
-                    </p>
-
-                  </div>
-
-                )}
-
-                <hr />
-
-                {/* ================================================= */}
-                {/* VAT CONTROL */}
-                {/* ================================================= */}
-
-                <div className="rounded-xl border bg-gray-50 p-4">
-
-                  <div className="flex items-center justify-between">
-
-                    <div>
-
-                      <p className="font-semibold text-gray-900">
-                        VAT
-                      </p>
-
-                      <p className="text-xs text-gray-500">
-                        Add VAT to this quotation
-                      </p>
-
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setVatEnabled(
-                          !vatEnabled
-                        )
-                      }
-                      aria-pressed={vatEnabled}
-                      className={`relative h-7 w-12 rounded-full transition ${
-                        vatEnabled
-                          ? "bg-blue-600"
-                          : "bg-gray-300"
-                      }`}
-                    >
-
-                      <span
-                        className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition ${
-                          vatEnabled
-                            ? "left-6"
-                            : "left-1"
-                        }`}
-                      />
-
-                    </button>
-
-                  </div>
-
-                  {vatEnabled && (
-
-                    <div className="mt-4">
-
-                      <label className="mb-2 block text-sm font-medium text-gray-700">
-                        VAT Rate
-                      </label>
-
-                      <div className="relative">
-
-                        <input
-                          type="number"
-                          min="0"
-                          max="100"
-                          step="0.01"
-                          value={vatRate}
-                          onChange={(e) =>
-                            setVatRate(
-                              Number(
-                                e.target.value
-                              )
-                            )
-                          }
-                          className="w-full rounded-lg border bg-white px-4 py-3 pr-10 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                        />
-
-                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500">
-                          %
-                        </span>
-
-                      </div>
-
-                    </div>
-
-                  )}
-
-                  {!vatEnabled && (
-
-                    <p className="mt-3 text-xs text-gray-500">
-                      VAT is currently hidden
-                      from this quotation.
-                    </p>
-
-                  )}
-
-                </div>
-
-                {/* ================================================= */}
-                {/* SUBTOTAL */}
-                {/* ================================================= */}
-
-                <div className="flex justify-between text-lg">
-
-                  <span className="text-gray-600">
-                    Subtotal
-                  </span>
-
-                  <span className="font-semibold">
-                    R{" "}
-                    {subtotal.toLocaleString(
-                      "en-ZA",
-                      {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      }
-                    )}
-                  </span>
-
-                </div>
-
-                {/* ================================================= */}
-                {/* VAT AMOUNT */}
-                {/* ================================================= */}
-
-                {vatEnabled && (
-
-                  <div className="flex justify-between text-lg">
-
-                    <span className="text-gray-600">
-                      VAT{" "}
-                      {Number(vatRate).toFixed(2)}%
-                    </span>
-
-                    <span className="font-semibold">
-                      R{" "}
-                      {vatAmount.toLocaleString(
-                        "en-ZA",
-                        {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        }
-                      )}
-                    </span>
-
-                  </div>
-
-                )}
-
-                {/* ================================================= */}
-                {/* TOTAL */}
-                {/* ================================================= */}
-
-                <div className="border-t pt-4">
-
-                  <div className="flex justify-between text-2xl font-bold">
-
-                    <span>
-                      Total
-                    </span>
-
-                    <span className="text-blue-700">
-                      R{" "}
-                      {total.toLocaleString(
-                        "en-ZA",
-                        {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        }
-                      )}
-                    </span>
-
-                  </div>
-
-                </div>
-
-                {/* ================================================= */}
-                {/* CREATE BUTTON */}
-                {/* ================================================= */}
-
-                <button
-                  type="button"
-                  onClick={saveQuote}
-                  disabled={saving}
-                  className="w-full rounded-lg bg-blue-600 py-3 font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {saving
-                    ? "Creating Quote..."
-                    : "Create Quote"}
-                </button>
-
-                {/* CANCEL */}
                 <button
                   type="button"
                   onClick={() =>
-                    router.push("/quotes")
+                    setVatEnabled(
+                      (current) => !current
+                    )
                   }
-                  disabled={saving}
-                  className="w-full rounded-lg border border-charcoal-200 bg-white py-3 font-semibold text-charcoal-700 transition hover:bg-charcoal-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  className={`relative inline-flex h-10 w-24 items-center rounded-full px-1 transition ${
+                    vatEnabled
+                      ? "bg-[#20AEB8]"
+                      : "bg-charcoal-300"
+                  }`}
+                  aria-pressed={vatEnabled}
+                  aria-label={
+                    vatEnabled
+                      ? "Turn VAT off"
+                      : "Turn VAT on"
+                  }
                 >
-                  Cancel
+
+                  <span
+                    className={`absolute h-8 w-8 rounded-full bg-white shadow-sm transition-transform ${
+                      vatEnabled
+                        ? "translate-x-14"
+                        : "translate-x-0"
+                    }`}
+                  />
+
+                  <span
+                    className={`w-full text-xs font-bold ${
+                      vatEnabled
+                        ? "pr-8 text-white"
+                        : "pl-8 text-charcoal-700"
+                    }`}
+                  >
+                    {vatEnabled
+                      ? "VAT ON"
+                      : "VAT OFF"}
+                  </span>
+
                 </button>
+
+              </div>
+
+              {vatEnabled && (
+
+                <div className="mb-4">
+
+                  <label
+                    htmlFor="vat-rate"
+                    className="mb-1 block text-sm font-medium text-charcoal-700"
+                  >
+                    VAT Rate (%)
+                  </label>
+
+                  <input
+                    id="vat-rate"
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    value={vatRate}
+                    onChange={(event) =>
+                      setVatRate(
+                        Number(
+                          event.target.value
+                        )
+                      )
+                    }
+                    className="w-full rounded-lg border border-charcoal-200 px-3 py-2.5 text-sm outline-none focus:border-charcoal-500 sm:max-w-xs"
+                  />
+
+                </div>
+
+              )}
+
+              <div className="space-y-3 text-sm">
+
+                <div className="flex justify-between">
+
+                  <span className="text-charcoal-500">
+                    Subtotal
+                  </span>
+
+                  <span className="font-medium text-charcoal-900">
+                    {formatCurrency(
+                      subtotal
+                    )}
+                  </span>
+
+                </div>
+
+                {vatEnabled && (
+
+                  <div className="flex justify-between">
+
+                    <span className="text-charcoal-500">
+                      VAT ({vatRate}%)
+                    </span>
+
+                    <span className="font-medium text-charcoal-900">
+                      {formatCurrency(
+                        vatAmount
+                      )}
+                    </span>
+
+                  </div>
+
+                )}
+
+                <div className="border-t border-charcoal-100 pt-3">
+
+                  <div className="flex justify-between">
+
+                    <span className="font-semibold text-charcoal-900">
+                      Total
+                    </span>
+
+                    <span className="text-xl font-bold text-charcoal-900">
+                      {formatCurrency(
+                        total
+                      )}
+                    </span>
+
+                  </div>
+
+                </div>
 
               </div>
 
             </div>
 
+          </section>
+
+          {/* BOTTOM BUTTONS */}
+
+          <div className="flex flex-col-reverse gap-3 border-t border-charcoal-100 pt-6 sm:flex-row sm:justify-end">
+
+            <button
+              type="button"
+              onClick={() =>
+                router.push("/quotes")
+              }
+              disabled={saving}
+              className="inline-flex items-center justify-center rounded-lg border border-charcoal-200 px-5 py-3 text-sm font-medium text-charcoal-700 hover:bg-charcoal-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Cancel
+            </button>
+
+            <button
+              type="button"
+              onClick={saveQuote}
+              disabled={saving}
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-charcoal-900 px-5 py-3 text-sm font-semibold text-white hover:bg-charcoal-800 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Save size={17} />
+
+              {saving
+                ? "Creating..."
+                : "Create Quote"}
+
+            </button>
+
           </div>
 
         </div>
-
       </div>
     </DashboardShell>
   );

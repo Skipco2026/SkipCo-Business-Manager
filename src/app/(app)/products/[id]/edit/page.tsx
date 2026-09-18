@@ -6,6 +6,11 @@ import Link from "next/link";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { createClient } from "@/lib/supabase/client";
 
+interface Category {
+  id: string;
+  description: string;
+}
+
 export default function EditProductPage() {
   const router = useRouter();
   const params = useParams();
@@ -13,6 +18,11 @@ export default function EditProductPage() {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [showAddCategory, setShowAddCategory] = useState(false);
+  const [newCategory, setNewCategory] = useState("");
+  const [addingCategory, setAddingCategory] = useState(false);
 
   const [form, setForm] = useState({
     product_code: "",
@@ -30,6 +40,7 @@ export default function EditProductPage() {
 
   useEffect(() => {
     loadProduct();
+    loadCategories();
   }, []);
 
   async function loadProduct() {
@@ -41,6 +52,7 @@ export default function EditProductPage() {
 
     if (error) {
       console.error(error);
+      setLoading(false);
       return;
     }
 
@@ -61,6 +73,20 @@ export default function EditProductPage() {
     setLoading(false);
   }
 
+  async function loadCategories() {
+    const { data, error } = await supabase
+      .from("categories")
+      .select("id, description")
+      .order("description");
+
+    if (error) {
+      console.error(error);
+      return;
+    }
+
+    setCategories(data ?? []);
+  }
+
   function updateField(
     field: keyof typeof form,
     value: string
@@ -71,9 +97,53 @@ export default function EditProductPage() {
     }));
   }
 
-  async function handleSubmit(
-    e: React.FormEvent
-  ) {
+  async function handleAddCategory() {
+    const description = newCategory.trim();
+
+    if (!description) {
+      alert("Please enter a category description.");
+      return;
+    }
+
+    setAddingCategory(true);
+
+    const { data, error } = await supabase
+      .from("categories")
+      .insert({
+        description,
+      })
+      .select("id, description")
+      .single();
+
+    if (error) {
+      console.error(error);
+
+      if (error.code === "23505") {
+        alert("This category already exists.");
+      } else {
+        alert(error.message);
+      }
+
+      setAddingCategory(false);
+      return;
+    }
+
+    if (data) {
+      setCategories((prev) =>
+        [...prev, data].sort((a, b) =>
+          a.description.localeCompare(b.description)
+        )
+      );
+
+      updateField("category", data.description);
+    }
+
+    setNewCategory("");
+    setShowAddCategory(false);
+    setAddingCategory(false);
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
     setSaving(true);
@@ -117,12 +187,11 @@ export default function EditProductPage() {
       title="Edit Product"
       subtitle={form.product_name}
     >
-
       <form
         onSubmit={handleSubmit}
         className="space-y-8"
       >
-                <div className="grid gap-8 lg:grid-cols-2">
+        <div className="grid gap-8 lg:grid-cols-2">
 
           {/* Product Details */}
 
@@ -143,7 +212,10 @@ export default function EditProductPage() {
                   type="text"
                   value={form.product_code}
                   onChange={(e) =>
-                    updateField("product_code", e.target.value)
+                    updateField(
+                      "product_code",
+                      e.target.value
+                    )
                   }
                   className="w-full rounded-lg border px-4 py-3"
                   required
@@ -159,41 +231,69 @@ export default function EditProductPage() {
                   type="text"
                   value={form.product_name}
                   onChange={(e) =>
-                    updateField("product_name", e.target.value)
+                    updateField(
+                      "product_name",
+                      e.target.value
+                    )
                   }
                   className="w-full rounded-lg border px-4 py-3"
                   required
                 />
+
+                <p className="mt-1 text-xs text-gray-500">
+                  The product name will be used as the description on quotes.
+                </p>
               </div>
 
-              <div>
-                <label className="mb-2 block text-sm font-medium">
-                  Description
-                </label>
-
-                <textarea
-                  rows={4}
-                  value={form.description}
-                  onChange={(e) =>
-                    updateField("description", e.target.value)
-                  }
-                  className="w-full rounded-lg border px-4 py-3"
-                />
-              </div>
+              {/* Category */}
 
               <div>
                 <label className="mb-2 block text-sm font-medium">
                   Category
                 </label>
 
-                <input
-                  type="text"
-                  value={form.category}
-                  onChange={(e) =>
-                    updateField("category", e.target.value)
-                  }
-                  className="w-full rounded-lg border px-4 py-3"
-                />
+                <div className="flex gap-2">
+
+                  <select
+                    value={form.category}
+                    onChange={(e) =>
+                      updateField(
+                        "category",
+                        e.target.value
+                      )
+                    }
+                    className="flex-1 rounded-lg border px-4 py-3"
+                  >
+                    <option value="">
+                      Select Category
+                    </option>
+
+                    {categories.map((category) => (
+                      <option
+                        key={category.id}
+                        value={category.description}
+                      >
+                        {category.description}
+                      </option>
+                    ))}
+                  </select>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewCategory("");
+                      setShowAddCategory(true);
+                    }}
+                    className="whitespace-nowrap rounded-lg border border-blue-600 px-4 py-3 text-blue-600 hover:bg-blue-50"
+                  >
+                    ＋ Add Category
+                  </button>
+
+                </div>
+
+                <p className="mt-1 text-xs text-gray-500">
+                  Select an existing category or add a new one.
+                </p>
               </div>
 
             </div>
@@ -218,12 +318,20 @@ export default function EditProductPage() {
                 <select
                   value={form.type}
                   onChange={(e) =>
-                    updateField("type", e.target.value)
+                    updateField(
+                      "type",
+                      e.target.value
+                    )
                   }
                   className="w-full rounded-lg border px-4 py-3"
                 >
-                  <option>Product</option>
-                  <option>Service</option>
+                  <option value="Product">
+                    Product
+                  </option>
+
+                  <option value="Service">
+                    Service
+                  </option>
                 </select>
               </div>
 
@@ -236,7 +344,10 @@ export default function EditProductPage() {
                   type="text"
                   value={form.unit}
                   onChange={(e) =>
-                    updateField("unit", e.target.value)
+                    updateField(
+                      "unit",
+                      e.target.value
+                    )
                   }
                   className="w-full rounded-lg border px-4 py-3"
                 />
@@ -254,7 +365,10 @@ export default function EditProductPage() {
                     step="0.01"
                     value={form.cost_price}
                     onChange={(e) =>
-                      updateField("cost_price", e.target.value)
+                      updateField(
+                        "cost_price",
+                        e.target.value
+                      )
                     }
                     className="w-full rounded-lg border px-4 py-3"
                   />
@@ -270,7 +384,10 @@ export default function EditProductPage() {
                     step="0.01"
                     value={form.selling_price}
                     onChange={(e) =>
-                      updateField("selling_price", e.target.value)
+                      updateField(
+                        "selling_price",
+                        e.target.value
+                      )
                     }
                     className="w-full rounded-lg border px-4 py-3"
                   />
@@ -290,7 +407,10 @@ export default function EditProductPage() {
                     step="0.01"
                     value={form.vat_rate}
                     onChange={(e) =>
-                      updateField("vat_rate", e.target.value)
+                      updateField(
+                        "vat_rate",
+                        e.target.value
+                      )
                     }
                     className="w-full rounded-lg border px-4 py-3"
                   />
@@ -304,12 +424,20 @@ export default function EditProductPage() {
                   <select
                     value={form.status}
                     onChange={(e) =>
-                      updateField("status", e.target.value)
+                      updateField(
+                        "status",
+                        e.target.value
+                      )
                     }
                     className="w-full rounded-lg border px-4 py-3"
                   >
-                    <option>Active</option>
-                    <option>Inactive</option>
+                    <option value="Active">
+                      Active
+                    </option>
+
+                    <option value="Inactive">
+                      Inactive
+                    </option>
                   </select>
                 </div>
 
@@ -320,7 +448,8 @@ export default function EditProductPage() {
           </div>
 
         </div>
-                {/* Notes */}
+
+        {/* Notes */}
 
         <div className="rounded-xl border bg-white p-6 shadow-sm">
 
@@ -332,7 +461,10 @@ export default function EditProductPage() {
             rows={5}
             value={form.notes}
             onChange={(e) =>
-              updateField("notes", e.target.value)
+              updateField(
+                "notes",
+                e.target.value
+              )
             }
             className="w-full rounded-lg border px-4 py-3"
             placeholder="Additional notes..."
@@ -356,12 +488,104 @@ export default function EditProductPage() {
             disabled={saving}
             className="rounded-lg bg-blue-600 px-6 py-3 text-white hover:bg-blue-700 disabled:opacity-50"
           >
-            {saving ? "Saving..." : "Save Changes"}
+            {saving
+              ? "Saving..."
+              : "Save Changes"}
           </button>
 
         </div>
 
       </form>
+
+      {/* Add Category Modal */}
+
+      {showAddCategory && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+
+          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+
+            <div className="mb-6 flex items-center justify-between">
+
+              <div>
+                <h2 className="text-xl font-bold">
+                  Add Category
+                </h2>
+
+                <p className="mt-1 text-sm text-gray-500">
+                  Enter the category description.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAddCategory(false);
+                  setNewCategory("");
+                }}
+                className="text-2xl text-gray-400 hover:text-gray-700"
+              >
+                ×
+              </button>
+
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-medium">
+                Category Description
+              </label>
+
+              <input
+                type="text"
+                value={newCategory}
+                onChange={(e) =>
+                  setNewCategory(e.target.value)
+                }
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleAddCategory();
+                  }
+                }}
+                placeholder="e.g. Skip Bin Hire"
+                className="w-full rounded-lg border px-4 py-3"
+                autoFocus
+              />
+            </div>
+
+            <div className="mt-6 flex justify-end gap-3">
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAddCategory(false);
+                  setNewCategory("");
+                }}
+                className="rounded-lg border px-5 py-3 hover:bg-gray-100"
+                disabled={addingCategory}
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={handleAddCategory}
+                disabled={
+                  addingCategory ||
+                  !newCategory.trim()
+                }
+                className="rounded-lg bg-blue-600 px-5 py-3 text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                {addingCategory
+                  ? "Adding..."
+                  : "Add Category"}
+              </button>
+
+            </div>
+
+          </div>
+
+        </div>
+      )}
 
     </DashboardShell>
   );
