@@ -15,6 +15,10 @@ import {
   Clock3,
   CalendarDays,
   Package,
+  TrendingUp,
+  Receipt,
+  WalletCards,
+  BarChart3,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useEffect, useState } from "react";
@@ -35,6 +39,19 @@ export function Sidebar({ open, onClose }: SidebarProps) {
     pathname === "/employees/payroll" ||
     pathname.startsWith("/employees/payroll/");
 
+  /*
+   * =========================================================
+   * FINANCIALS
+   * =========================================================
+   */
+
+  const financialsSectionActive =
+    pathname === "/financials" ||
+    pathname.startsWith("/financials/");
+
+  const [financialsOpen, setFinancialsOpen] =
+    useState(financialsSectionActive);
+
   const [employeesOpen, setEmployeesOpen] =
     useState(employeeSectionActive);
 
@@ -42,6 +59,10 @@ export function Sidebar({ open, onClose }: SidebarProps) {
     useState(payrollSectionActive);
 
   useEffect(() => {
+    if (financialsSectionActive) {
+      setFinancialsOpen(true);
+    }
+
     if (employeeSectionActive) {
       setEmployeesOpen(true);
     }
@@ -50,7 +71,11 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       setEmployeesOpen(true);
       setPayrollOpen(true);
     }
-  }, [employeeSectionActive, payrollSectionActive]);
+  }, [
+    financialsSectionActive,
+    employeeSectionActive,
+    payrollSectionActive,
+  ]);
 
   /*
    * =========================================================
@@ -121,6 +146,35 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       title: "Jobs",
       href: "/jobs",
       icon: Briefcase,
+    },
+  ];
+
+  /*
+   * =========================================================
+   * FINANCIALS SUB-NAVIGATION
+   * =========================================================
+   */
+
+  const financialsSubItems = [
+    {
+      title: "Income",
+      href: "/financials/income",
+      icon: TrendingUp,
+    },
+    {
+      title: "Expenses",
+      href: "/financials/expenses",
+      icon: Receipt,
+    },
+    {
+      title: "Kickback",
+      href: "/financials/kickback",
+      icon: WalletCards,
+    },
+    {
+      title: "Balance & Statement",
+      href: "/financials/balance",
+      icon: BarChart3,
     },
   ];
 
@@ -222,6 +276,110 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         </p>
 
         <div className="space-y-1">
+
+          {/* =================================================
+              FINANCIALS PARENT
+          ================================================= */}
+
+          <button
+            type="button"
+            onClick={() =>
+              setFinancialsOpen(
+                (current) => !current
+              )
+            }
+            className={cn(
+              "group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
+              financialsSectionActive
+                ? "bg-primary text-white shadow-md shadow-primary/25"
+                : "text-charcoal-600 hover:bg-charcoal-50 hover:text-charcoal-900 dark:text-charcoal-400 dark:hover:bg-charcoal-800 dark:hover:text-white"
+            )}
+          >
+            <DollarSign
+              className={cn(
+                "h-5 w-5 shrink-0",
+                financialsSectionActive
+                  ? "text-white"
+                  : "text-charcoal-400 group-hover:text-charcoal-600 dark:group-hover:text-charcoal-300"
+              )}
+            />
+
+            <span className="flex-1 text-left">
+              Financials
+            </span>
+
+            <ChevronDown
+              className={cn(
+                "h-4 w-4 transition-transform duration-200",
+                financialsOpen && "rotate-180"
+              )}
+            />
+          </button>
+
+          {/* =================================================
+              FINANCIALS SUBMENU
+          ================================================= */}
+
+          <AnimatePresence initial={false}>
+            {financialsOpen && (
+              <motion.div
+                initial={{
+                  height: 0,
+                  opacity: 0,
+                }}
+                animate={{
+                  height: "auto",
+                  opacity: 1,
+                }}
+                exit={{
+                  height: 0,
+                  opacity: 0,
+                }}
+                transition={{
+                  duration: 0.2,
+                }}
+                className="overflow-hidden"
+              >
+                <div className="ml-4 space-y-1 border-l border-charcoal-200 pl-3 dark:border-charcoal-700">
+                  {financialsSubItems.map((item) => {
+                    const Icon = item.icon;
+
+                    const isActive =
+                      pathname === item.href ||
+                      pathname.startsWith(
+                        `${item.href}/`
+                      );
+
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        onClick={onClose}
+                        className={cn(
+                          "group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200",
+                          isActive
+                            ? "bg-primary/10 text-primary"
+                            : "text-charcoal-600 hover:bg-charcoal-50 hover:text-charcoal-900 dark:text-charcoal-400 dark:hover:bg-charcoal-800 dark:hover:text-white"
+                        )}
+                      >
+                        <Icon
+                          className={cn(
+                            "h-4 w-4 shrink-0",
+                            isActive
+                              ? "text-primary"
+                              : "text-charcoal-400"
+                          )}
+                        />
+
+                        <span>{item.title}</span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {/* =================================================
               EMPLOYEES PARENT
           ================================================= */}
@@ -229,7 +387,9 @@ export function Sidebar({ open, onClose }: SidebarProps) {
           <button
             type="button"
             onClick={() =>
-              setEmployeesOpen((current) => !current)
+              setEmployeesOpen(
+                (current) => !current
+              )
             }
             className={cn(
               "group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
@@ -284,11 +444,13 @@ export function Sidebar({ open, onClose }: SidebarProps) {
                 className="overflow-hidden"
               >
                 <div className="ml-4 space-y-1 border-l border-charcoal-200 pl-3 dark:border-charcoal-700">
+
                   {/* Employees */}
 
                   {employeesSubItems
                     .filter(
-                      (item) => item.href === "/employees"
+                      (item) =>
+                        item.href === "/employees"
                     )
                     .map((item) => {
                       const Icon = item.icon;
@@ -382,6 +544,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
                         className="overflow-hidden"
                       >
                         <div className="ml-4 space-y-1 border-l border-charcoal-100 pl-3 dark:border-charcoal-800">
+
                           <Link
                             href="/employees/payroll"
                             onClick={onClose}
@@ -414,6 +577,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
 
                             <span>Payslips</span>
                           </Link>
+
                         </div>
                       </motion.div>
                     )}
@@ -504,6 +668,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
                         </Link>
                       );
                     })}
+
                 </div>
               </motion.div>
             )}
@@ -568,6 +733,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
               );
             })()}
           </Link>
+
         </div>
       </nav>
 
