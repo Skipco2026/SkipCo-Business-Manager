@@ -1193,7 +1193,7 @@ export default function StatementsPage() {
     setSuccess("");
 
     let statementId: string | null = null;
-    let appliedKickbackIds: string[] = [];
+    const appliedKickbackIds: string[] = [];
 
     try {
       /*
@@ -1471,10 +1471,6 @@ export default function StatementsPage() {
           </div>
         )}
 
-        {/* =====================================================
-            CREATE STATEMENT
-        ===================================================== */}
-
         <div className="rounded-2xl border border-charcoal-100 bg-white p-6 shadow-sm">
           <div className="mb-5">
             <h2 className="text-lg font-semibold text-charcoal-900">
@@ -1488,8 +1484,6 @@ export default function StatementsPage() {
           </div>
 
           <div className="grid gap-5 md:grid-cols-3">
-            {/* CUSTOMER SEARCH */}
-
             <div className="md:col-span-1">
               <label className="mb-2 block text-sm font-medium text-charcoal-700">
                 Search Customer
@@ -1508,8 +1502,6 @@ export default function StatementsPage() {
                 />
               </div>
             </div>
-
-            {/* CUSTOMER */}
 
             <div className="md:col-span-2">
               <label className="mb-2 block text-sm font-medium text-charcoal-700">
@@ -1543,8 +1535,6 @@ export default function StatementsPage() {
               </select>
             </div>
 
-            {/* FROM DATE */}
-
             <div>
               <label className="mb-2 block text-sm font-medium text-charcoal-700">
                 Statement From
@@ -1565,8 +1555,6 @@ export default function StatementsPage() {
                 />
               </div>
             </div>
-
-            {/* TO DATE */}
 
             <div>
               <label className="mb-2 block text-sm font-medium text-charcoal-700">
@@ -1589,8 +1577,6 @@ export default function StatementsPage() {
               </div>
             </div>
 
-            {/* STATEMENT DATE */}
-
             <div>
               <label className="mb-2 block text-sm font-medium text-charcoal-700">
                 Statement Date
@@ -1611,8 +1597,6 @@ export default function StatementsPage() {
                 />
               </div>
             </div>
-
-            {/* FROM INVOICE */}
 
             <div>
               <label className="mb-2 block text-sm font-medium text-charcoal-700">
@@ -1649,8 +1633,6 @@ export default function StatementsPage() {
               </select>
             </div>
 
-            {/* TO INVOICE */}
-
             <div>
               <label className="mb-2 block text-sm font-medium text-charcoal-700">
                 To Invoice
@@ -1686,8 +1668,6 @@ export default function StatementsPage() {
               </select>
             </div>
 
-            {/* ACTIONS */}
-
             <div className="flex items-end gap-2">
               <button
                 type="button"
@@ -1705,16 +1685,10 @@ export default function StatementsPage() {
                       customer={selectedCustomer}
                       invoices={displayedInvoices}
                       kickbacks={selectedKickbacks}
-                      totalInvoices={
-                        totalInvoices
-                      }
-                      totalKickbacks={
-                        totalKickbacks
-                      }
+                      totalInvoices={totalInvoices}
+                      totalKickbacks={totalKickbacks}
                       balanceDue={balanceDue}
-                      statementDate={
-                        statementDate
-                      }
+                      statementDate={statementDate}
                       startDate={startDate}
                       endDate={endDate}
                     />
@@ -1752,8 +1726,6 @@ export default function StatementsPage() {
             </div>
           </div>
 
-          {/* INVOICE RANGE */}
-
           {(fromInvoice || toInvoice) && (
             <div className="mt-5 rounded-xl border border-[#20AEB8]/20 bg-[#20AEB8]/5 px-4 py-3 text-sm text-charcoal-600">
               Invoice range:{" "}
@@ -1770,10 +1742,6 @@ export default function StatementsPage() {
               </span>
             </div>
           )}
-
-          {/* =================================================
-              KICKBACK CHECKBOX
-          ================================================= */}
 
           <div className="mt-6 border-t border-charcoal-100 pt-6">
             <label className="flex cursor-pointer items-center gap-3">
@@ -1806,10 +1774,6 @@ export default function StatementsPage() {
             </label>
           </div>
 
-          {/* =================================================
-              AVAILABLE KICKBACKS
-          ================================================= */}
-
           {addKickbacks && selectedCustomer && (
             <div className="mt-5 rounded-xl border border-[#20AEB8]/20 bg-[#20AEB8]/5 p-4">
               <div className="mb-4 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
@@ -1828,9 +1792,7 @@ export default function StatementsPage() {
                   <div className="flex gap-2">
                     <button
                       type="button"
-                      onClick={
-                        selectAllKickbacks
-                      }
+                      onClick={selectAllKickbacks}
                       className="rounded-lg border border-charcoal-200 bg-white px-3 py-2 text-xs font-medium text-charcoal-700 hover:bg-charcoal-50"
                     >
                       Select All
@@ -1838,9 +1800,7 @@ export default function StatementsPage() {
 
                     <button
                       type="button"
-                      onClick={
-                        clearKickbacks
-                      }
+                      onClick={clearKickbacks}
                       className="rounded-lg border border-charcoal-200 bg-white px-3 py-2 text-xs font-medium text-charcoal-700 hover:bg-charcoal-50"
                     >
                       Clear
@@ -1988,10 +1948,6 @@ export default function StatementsPage() {
             </div>
           )}
 
-          {/* =================================================
-              STATEMENT FINAL TOTALS
-          ================================================= */}
-
           {selectedCustomer &&
             !loadingStatement &&
             displayedInvoices.length > 0 && (
@@ -2082,10 +2038,6 @@ export default function StatementsPage() {
             )}
         </div>
 
-        {/* =====================================================
-            LOADING
-        ===================================================== */}
-
         {loadingStatement && (
           <div className="flex items-center justify-center rounded-2xl border border-charcoal-100 bg-white px-6 py-16 shadow-sm">
             <Loader2 className="h-6 w-6 animate-spin text-[#20AEB8]" />
@@ -2095,10 +2047,6 @@ export default function StatementsPage() {
             </span>
           </div>
         )}
-
-        {/* =====================================================
-            STATEMENT PREVIEW
-        ===================================================== */}
 
         {!loadingStatement && selectedCustomer && (
           <div className="rounded-2xl border border-charcoal-100 bg-charcoal-50 p-4 shadow-sm md:p-8">
@@ -2427,10 +2375,6 @@ export default function StatementsPage() {
           </div>
         )}
 
-        {/* =====================================================
-            SAVED STATEMENTS
-        ===================================================== */}
-
         {!loading &&
           savedStatements.length > 0 && (
             <div className="rounded-2xl border border-charcoal-100 bg-white p-6 shadow-sm">
@@ -2582,10 +2526,6 @@ export default function StatementsPage() {
               </div>
             </div>
           )}
-
-        {/* =====================================================
-            EMPTY CUSTOMER STATE
-        ===================================================== */}
 
         {!loading &&
           !loadingStatement &&
