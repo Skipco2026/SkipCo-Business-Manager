@@ -41,6 +41,47 @@ interface Job {
   customer?: Customer | null;
 }
 
+interface KickbackItemRow {
+  id: string;
+  kickback_id: string | null;
+  description: string | null;
+  rate_per_kg: number | null;
+  quantity_kg: number | null;
+  line_total: number | null;
+  created_at: string;
+}
+
+interface KickbackJobRow {
+  id: string;
+  job_number: string | null;
+  job_type: string | null;
+  description: string | null;
+  customer_id: string | null;
+  customers: Customer | Customer[] | null;
+}
+
+interface KickbackRow {
+  id: string;
+  reference: string | null;
+  transaction_date: string;
+  description: string | null;
+  amount: number | null;
+  notes: string | null;
+  vat_enabled: boolean | null;
+  vat_rate: number | null;
+  job_id: string | null;
+  jobs: KickbackJobRow | KickbackJobRow[] | null;
+}
+
+interface JobRow {
+  id: string;
+  job_number: string | null;
+  job_type: string | null;
+  description: string | null;
+  customer_id: string | null;
+  customers: Customer | Customer[] | null;
+}
+
 interface KickbackItem {
   id?: string;
   description: string;
@@ -178,7 +219,7 @@ export default function KickbackPage() {
 
       const itemMap = new Map<string, KickbackItem[]>();
 
-      (itemRows || []).forEach((item: any) => {
+      (itemRows || []).forEach((item: KickbackItemRow) => {
         const kickbackId = item.kickback_id;
 
         if (!kickbackId) return;
@@ -201,7 +242,7 @@ export default function KickbackPage() {
        */
       const formattedKickbacks: Kickback[] = (
         kickbackRows || []
-      ).map((row: any) => {
+      ).map((row: KickbackRow) => {
         const job = Array.isArray(row.jobs)
           ? row.jobs[0]
           : row.jobs;
@@ -274,7 +315,7 @@ export default function KickbackPage() {
 
       if (!jobError) {
         const formattedJobs: Job[] = (jobRows || []).map(
-          (row: any) => {
+          (row: JobRow) => {
             const customer = row.customers
               ? Array.isArray(row.customers)
                 ? row.customers[0]
