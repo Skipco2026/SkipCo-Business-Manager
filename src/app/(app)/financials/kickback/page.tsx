@@ -105,6 +105,12 @@ interface Kickback {
   items: KickbackItem[];
 }
 
+interface FormItem {
+  description: string;
+  rate_per_kg: string;
+  quantity_kg: string;
+}
+
 interface FormData {
   reference: string;
   transaction_date: string;
@@ -127,6 +133,12 @@ const emptyForm: FormData = {
   vat_rate: "15",
 };
 
+const emptyItem: FormItem = {
+  description: "",
+  rate_per_kg: "",
+  quantity_kg: "",
+};
+
 export default function KickbackPage() {
   const supabase = createClient();
 
@@ -141,6 +153,9 @@ export default function KickbackPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const [form, setForm] = useState<FormData>(emptyForm);
+  const [formItems, setFormItems] = useState<FormItem[]>([
+    emptyItem,
+  ]);
 
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -150,13 +165,6 @@ export default function KickbackPage() {
     setError(null);
 
     try {
-      /*
-       * LOAD KICKBACK TRANSACTIONS
-       *
-       * IMPORTANT:
-       * The actual database column is `type`,
-       * not `transaction_type`.
-       */
       const { data: kickbackRows, error: kickbackError } =
         await supabase
           .from("financial_transactions")
@@ -192,26 +200,21 @@ export default function KickbackPage() {
         throw kickbackError;
       }
 
-      /*
-       * LOAD KICKBACK ITEMS
-       *
-       * The actual relationship column is:
-       * kickback_items.kickback_id
-       */
-      const { data: itemRows, error: itemError } = await supabase
-        .from("kickback_items")
-        .select(
-          `
-            id,
-            kickback_id,
-            description,
-            rate_per_kg,
-            quantity_kg,
-            line_total,
-            created_at
-          `
-        )
-        .order("created_at", { ascending: true });
+      const { data: itemRows, error: itemError } =
+        await supabase
+          .from("kickback_items")
+          .select(
+            `
+              id,
+              kickback_id,
+              description,
+              rate_per_kg,
+              quantity_kg,
+              line_total,
+              created_at
+            `
+          )
+          .order("created_at", { ascending: true });
 
       if (itemError) {
         throw itemError;
@@ -237,9 +240,6 @@ export default function KickbackPage() {
         });
       });
 
-      /*
-       * FORMAT KICKBACKS
-       */
       const formattedKickbacks: Kickback[] = (
         kickbackRows || []
       ).map((row: KickbackRow) => {
@@ -260,17 +260,8 @@ export default function KickbackPage() {
           description: row.description || "",
           amount: Number(row.amount || 0),
           notes: row.notes || null,
-
-          /*
-           * Existing kickbacks default to VAT OFF.
-           */
           vat_enabled: row.vat_enabled === true,
-
-          /*
-           * Existing kickbacks default to 15%.
-           */
           vat_rate: Number(row.vat_rate ?? 15),
-
           job_id: row.job_id || null,
 
           job: job
@@ -292,26 +283,24 @@ export default function KickbackPage() {
 
       setKickbacks(formattedKickbacks);
 
-      /*
-       * LOAD JOBS FOR ADD/EDIT MODAL
-       */
-      const { data: jobRows, error: jobError } = await supabase
-        .from("jobs")
-        .select(
-          `
-            id,
-            job_number,
-            job_type,
-            description,
-            customer_id,
-            customers (
+      const { data: jobRows, error: jobError } =
+        await supabase
+          .from("jobs")
+          .select(
+            `
               id,
-              company_name,
-              trading_name
-            )
-          `
-        )
-        .order("created_at", { ascending: false });
+              job_number,
+              job_type,
+              description,
+              customer_id,
+              customers (
+                id,
+                company_name,
+                trading_name
+              )
+            `
+          )
+          .order("created_at", { ascending: false });
 
       if (!jobError) {
         const formattedJobs: Job[] = (jobRows || []).map(
@@ -352,15 +341,55 @@ export default function KickbackPage() {
     loadData();
   }, []);
 
+  /*
+   * AUTOMATIC KICKBACK NUMBER
+   *
+   * Existing numbers:
+   * KB-0001
+   * KB-0002
+   * KB-0003
+   *
+   * Next number:
+   * KB-0004
+   */
+  function getNextKickbackNumber() {
+    let highestNumber = 0;
+
+    kickbacks.forEach((kickback) => {
+      const match = kickback.reference
+        .trim()
+        .match(/^KB-(\d+)$/i);
+
+      if (match) {
+        const number = Number(match[1]);
+
+        if (Number.isFinite(number)) {
+          highestNumber = Math.max(
+            highestNumber,
+            number
+          );
+        }
+      }
+    });
+
+    return `KB-${String(highestNumber + 1).padStart(
+      4,
+      "0"
+    )}`;
+  }
+
   function openAddModal() {
     setEditingId(null);
 
     setForm({
       ...emptyForm,
+      reference: getNextKickbackNumber(),
       transaction_date: new Date()
         .toISOString()
         .split("T")[0],
     });
+
+    setFormItems([{ ...emptyItem }]);
 
     setError(null);
     setMessage(null);
@@ -381,6 +410,29 @@ export default function KickbackPage() {
       vat_rate: String(kickback.vat_rate ?? 15),
     });
 
+    /*
+     * Load all existing items into the edit form.
+     */
+    if (kickback.items.length > 0) {
+      setFormItems(
+        kickback.items.map((item) => ({
+          description: item.description || "",
+          rate_per_kg: String(
+            item.rate_per_kg ?? ""
+          ),
+          quantity_kg: String(
+            item.quantity_kg ?? ""
+          ),
+        }))
+      );
+    } else {
+      /*
+       * Older kickbacks that don't have line items
+       * still remain editable.
+       */
+      setFormItems([{ ...emptyItem }]);
+    }
+
     setError(null);
     setMessage(null);
     setShowModal(true);
@@ -392,6 +444,7 @@ export default function KickbackPage() {
     setShowModal(false);
     setEditingId(null);
     setForm(emptyForm);
+    setFormItems([{ ...emptyItem }]);
   }
 
   function updateForm<K extends keyof FormData>(
@@ -403,6 +456,79 @@ export default function KickbackPage() {
       [field]: value,
     }));
   }
+
+  function updateItem(
+    index: number,
+    field: keyof FormItem,
+    value: string
+  ) {
+    setFormItems((current) =>
+      current.map((item, itemIndex) =>
+        itemIndex === index
+          ? {
+              ...item,
+              [field]: value,
+            }
+          : item
+      )
+    );
+  }
+
+  function addItem() {
+    setFormItems((current) => [
+      ...current,
+      { ...emptyItem },
+    ]);
+  }
+
+  function removeItem(index: number) {
+    setFormItems((current) => {
+      if (current.length === 1) {
+        return current;
+      }
+
+      return current.filter(
+        (_, itemIndex) => itemIndex !== index
+      );
+    });
+  }
+
+  const calculatedItems = useMemo(() => {
+    return formItems.map((item) => {
+      const quantity = Number(
+        item.quantity_kg || 0
+      );
+
+      const rate = Number(
+        item.rate_per_kg || 0
+      );
+
+      return {
+        ...item,
+        quantity,
+        rate,
+        total: quantity * rate,
+      };
+    });
+  }, [formItems]);
+
+  const calculatedItemsTotal = useMemo(() => {
+    return calculatedItems.reduce(
+      (sum, item) => sum + item.total,
+      0
+    );
+  }, [calculatedItems]);
+
+  useEffect(() => {
+    if (!showModal) return;
+
+    setForm((current) => ({
+      ...current,
+      amount: calculatedItemsTotal
+        ? calculatedItemsTotal.toFixed(2)
+        : current.amount,
+    }));
+  }, [calculatedItemsTotal, showModal]);
 
   async function saveKickback(
     event: React.FormEvent<HTMLFormElement>
@@ -422,12 +548,70 @@ export default function KickbackPage() {
       return;
     }
 
-    const amount = Number(form.amount);
+    const validItems = formItems.filter(
+      (item) =>
+        item.description.trim() ||
+        item.quantity_kg.trim() ||
+        item.rate_per_kg.trim()
+    );
 
-    if (!Number.isFinite(amount) || amount < 0) {
-      setError("Please enter a valid kickback amount.");
+    if (validItems.length === 0) {
+      setError(
+        "Please add at least one kickback item."
+      );
       return;
     }
+
+    for (let index = 0; index < validItems.length; index++) {
+      const item = validItems[index];
+
+      if (!item.description.trim()) {
+        setError(
+          `Please enter a description for item ${
+            index + 1
+          }.`
+        );
+        return;
+      }
+
+      const quantity = Number(
+        item.quantity_kg
+      );
+
+      const rate = Number(item.rate_per_kg);
+
+      if (
+        !Number.isFinite(quantity) ||
+        quantity <= 0
+      ) {
+        setError(
+          `Please enter a valid quantity for item ${
+            index + 1
+          }.`
+        );
+        return;
+      }
+
+      if (
+        !Number.isFinite(rate) ||
+        rate < 0
+      ) {
+        setError(
+          `Please enter a valid rate for item ${
+            index + 1
+          }.`
+        );
+        return;
+      }
+    }
+
+    const amount = validItems.reduce(
+      (sum, item) =>
+        sum +
+        Number(item.quantity_kg || 0) *
+          Number(item.rate_per_kg || 0),
+      0
+    );
 
     const vatRate = Number(form.vat_rate);
 
@@ -442,11 +626,6 @@ export default function KickbackPage() {
     setSaving(true);
 
     try {
-      /*
-       * IMPORTANT:
-       * The actual database column is `type`,
-       * not `transaction_type`.
-       */
       const payload = {
         reference: form.reference.trim(),
         transaction_date: form.transaction_date,
@@ -456,27 +635,45 @@ export default function KickbackPage() {
         job_id: form.job_id || null,
         type: "kickback",
         vat_enabled: form.vat_enabled,
-        vat_rate: form.vat_enabled ? vatRate : 15,
+        vat_rate: form.vat_enabled
+          ? vatRate
+          : 15,
       };
 
       let transactionId = editingId;
 
       if (editingId) {
-        const { error: updateError } = await supabase
-          .from("financial_transactions")
-          .update(payload)
-          .eq("id", editingId)
-          .eq("type", "kickback");
+        const { error: updateError } =
+          await supabase
+            .from("financial_transactions")
+            .update(payload)
+            .eq("id", editingId)
+            .eq("type", "kickback");
 
         if (updateError) {
           throw updateError;
         }
+
+        /*
+         * Remove the old items before saving
+         * the new complete item list.
+         */
+        const { error: oldItemsError } =
+          await supabase
+            .from("kickback_items")
+            .delete()
+            .eq("kickback_id", editingId);
+
+        if (oldItemsError) {
+          throw oldItemsError;
+        }
       } else {
-        const { data, error: insertError } = await supabase
-          .from("financial_transactions")
-          .insert(payload)
-          .select("id")
-          .single();
+        const { data, error: insertError } =
+          await supabase
+            .from("financial_transactions")
+            .insert(payload)
+            .select("id")
+            .single();
 
         if (insertError) {
           throw insertError;
@@ -491,9 +688,43 @@ export default function KickbackPage() {
         );
       }
 
+      /*
+       * Save ALL kickback items.
+       */
+      const itemPayload = validItems.map(
+        (item) => {
+          const quantity = Number(
+            item.quantity_kg
+          );
+
+          const rate = Number(
+            item.rate_per_kg
+          );
+
+          return {
+            kickback_id: transactionId,
+            description:
+              item.description.trim(),
+            rate_per_kg: rate,
+            quantity_kg: quantity,
+            line_total: quantity * rate,
+          };
+        }
+      );
+
+      const { error: itemInsertError } =
+        await supabase
+          .from("kickback_items")
+          .insert(itemPayload);
+
+      if (itemInsertError) {
+        throw itemInsertError;
+      }
+
       setShowModal(false);
       setEditingId(null);
       setForm(emptyForm);
+      setFormItems([{ ...emptyItem }]);
 
       await loadData();
 
@@ -503,7 +734,10 @@ export default function KickbackPage() {
           : "Kickback added successfully."
       );
     } catch (err) {
-      console.error("Failed to save kickback:", err);
+      console.error(
+        "Failed to save kickback:",
+        err
+      );
 
       setError(
         err instanceof Error
@@ -527,29 +761,22 @@ export default function KickbackPage() {
     setMessage(null);
 
     try {
-      /*
-       * Delete child kickback items first.
-       *
-       * Actual column:
-       * kickback_items.kickback_id
-       */
-      const { error: itemDeleteError } = await supabase
-        .from("kickback_items")
-        .delete()
-        .eq("kickback_id", id);
+      const { error: itemDeleteError } =
+        await supabase
+          .from("kickback_items")
+          .delete()
+          .eq("kickback_id", id);
 
       if (itemDeleteError) {
         throw itemDeleteError;
       }
 
-      /*
-       * Then delete the kickback transaction.
-       */
-      const { error: deleteError } = await supabase
-        .from("financial_transactions")
-        .delete()
-        .eq("id", id)
-        .eq("type", "kickback");
+      const { error: deleteError } =
+        await supabase
+          .from("financial_transactions")
+          .delete()
+          .eq("id", id)
+          .eq("type", "kickback");
 
       if (deleteError) {
         throw deleteError;
@@ -557,9 +784,14 @@ export default function KickbackPage() {
 
       await loadData();
 
-      setMessage("Kickback deleted successfully.");
+      setMessage(
+        "Kickback deleted successfully."
+      );
     } catch (err) {
-      console.error("Failed to delete kickback:", err);
+      console.error(
+        "Failed to delete kickback:",
+        err
+      );
 
       setError(
         err instanceof Error
@@ -616,8 +848,9 @@ export default function KickbackPage() {
         return (
           sum +
           Number(kickback.amount || 0) *
-            (Number(kickback.vat_rate || 15) /
-              100)
+            (Number(
+              kickback.vat_rate || 15
+            ) / 100)
         );
       },
       0
@@ -630,11 +863,17 @@ export default function KickbackPage() {
     };
   }, [kickbacks]);
 
-  const previewAmount = Number(form.amount || 0);
-  const previewVatRate = Number(form.vat_rate || 15);
+  const previewAmount =
+    calculatedItemsTotal ||
+    Number(form.amount || 0);
+
+  const previewVatRate = Number(
+    form.vat_rate || 15
+  );
 
   const previewVat = form.vat_enabled
-    ? previewAmount * (previewVatRate / 100)
+    ? previewAmount *
+      (previewVatRate / 100)
     : 0;
 
   const previewTotal =
@@ -651,7 +890,9 @@ export default function KickbackPage() {
   function formatDate(value: string) {
     if (!value) return "-";
 
-    const date = new Date(`${value}T00:00:00`);
+    const date = new Date(
+      `${value}T00:00:00`
+    );
 
     if (Number.isNaN(date.getTime())) {
       return value;
@@ -664,7 +905,9 @@ export default function KickbackPage() {
     }).format(date);
   }
 
-  function getCustomerName(kickback: Kickback) {
+  function getCustomerName(
+    kickback: Kickback
+  ) {
     return (
       kickback.customer?.trading_name ||
       kickback.customer?.company_name ||
@@ -906,164 +1149,191 @@ export default function KickbackPage() {
                 </thead>
 
                 <tbody className="divide-y divide-charcoal-100 dark:divide-charcoal-800">
-                  {filteredKickbacks.map((kickback) => {
-                    const vatAmount =
-                      kickback.vat_enabled
-                        ? Number(kickback.amount || 0) *
-                          (Number(
-                            kickback.vat_rate || 15
-                          ) /
-                            100)
-                        : 0;
-
-                    const total =
-                      Number(kickback.amount || 0) +
-                      vatAmount;
-
-                    return (
-                      <tr
-                        key={kickback.id}
-                        className="transition hover:bg-charcoal-50 dark:hover:bg-charcoal-950/50"
-                      >
-                        <td className="whitespace-nowrap px-5 py-4">
-                          <div className="font-semibold text-charcoal-900 dark:text-white">
-                            {kickback.reference}
-                          </div>
-
-                          {kickback.job?.job_number && (
-                            <div className="mt-0.5 text-xs text-charcoal-500">
-                              {kickback.job.job_number}
-                            </div>
-                          )}
-                        </td>
-
-                        <td className="whitespace-nowrap px-5 py-4 text-sm text-charcoal-600 dark:text-charcoal-300">
-                          {formatDate(
-                            kickback.transaction_date
-                          )}
-                        </td>
-
-                        <td className="px-5 py-4">
-                          <div className="max-w-[180px] truncate text-sm font-medium text-charcoal-800 dark:text-charcoal-200">
-                            {getCustomerName(kickback)}
-                          </div>
-                        </td>
-
-                        <td className="px-5 py-4">
-                          <div className="max-w-[220px] truncate text-sm text-charcoal-600 dark:text-charcoal-300">
-                            {kickback.description}
-                          </div>
-                        </td>
-
-                        <td className="whitespace-nowrap px-5 py-4">
-                          {kickback.vat_enabled ? (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300">
-                              <Power className="h-3 w-3" />
-                              ON {kickback.vat_rate}%
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-charcoal-100 px-2.5 py-1 text-xs font-semibold text-charcoal-600 dark:bg-charcoal-800 dark:text-charcoal-300">
-                              OFF
-                            </span>
-                          )}
-                        </td>
-
-                        <td className="whitespace-nowrap px-5 py-4 text-right text-sm font-medium text-charcoal-800 dark:text-charcoal-200">
-                          {formatCurrency(
-                            Number(
+                  {filteredKickbacks.map(
+                    (kickback) => {
+                      const vatAmount =
+                        kickback.vat_enabled
+                          ? Number(
                               kickback.amount || 0
-                            )
-                          )}
-                        </td>
+                            ) *
+                            (Number(
+                              kickback.vat_rate ||
+                                15
+                            ) /
+                              100)
+                          : 0;
 
-                        <td className="whitespace-nowrap px-5 py-4 text-right text-sm font-bold text-charcoal-950 dark:text-white">
-                          {formatCurrency(total)}
-                        </td>
+                      const total =
+                        Number(
+                          kickback.amount || 0
+                        ) + vatAmount;
 
-                        <td className="whitespace-nowrap px-5 py-4">
-                          <div className="flex items-center justify-end gap-2">
-                            <KickbackPDFDownloadButton
-                              kickback={{
-                                reference:
-                                  kickback.reference,
-                                transaction_date:
-                                  kickback.transaction_date,
-                                description:
-                                  kickback.description,
-                                amount: Number(
-                                  kickback.amount || 0
-                                ),
-                                notes: kickback.notes,
-                                vat_enabled:
-                                  kickback.vat_enabled,
-                                vat_rate: Number(
-                                  kickback.vat_rate || 15
-                                ),
-                                customer:
-                                  kickback.customer ||
-                                  null,
-                                job: kickback.job
-                                  ? {
-                                      job_number:
-                                        kickback.job
-                                          .job_number,
-                                      job_type:
-                                        kickback.job
-                                          .job_type,
-                                      description:
-                                        kickback.job
-                                          .description,
-                                    }
-                                  : null,
-                                items:
-                                  kickback.items,
-                              }}
-                              onError={(downloadError) =>
-                                setError(
-                                  downloadError
-                                )
-                              }
-                            />
+                      return (
+                        <tr
+                          key={kickback.id}
+                          className="transition hover:bg-charcoal-50 dark:hover:bg-charcoal-950/50"
+                        >
+                          <td className="whitespace-nowrap px-5 py-4">
+                            <div className="font-semibold text-charcoal-900 dark:text-white">
+                              {kickback.reference}
+                            </div>
 
-                            <button
-                              type="button"
-                              onClick={() =>
-                                openEditModal(
-                                  kickback
-                                )
-                              }
-                              title="Edit Kickback"
-                              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-charcoal-200 bg-white text-charcoal-700 transition hover:border-cyan-500 hover:bg-cyan-50 hover:text-cyan-700 dark:border-charcoal-700 dark:bg-charcoal-900 dark:text-charcoal-200 dark:hover:border-cyan-500 dark:hover:bg-cyan-950/30"
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </button>
+                            {kickback.job
+                              ?.job_number && (
+                              <div className="mt-0.5 text-xs text-charcoal-500">
+                                {
+                                  kickback.job
+                                    .job_number
+                                }
+                              </div>
+                            )}
+                          </td>
 
-                            <button
-                              type="button"
-                              onClick={() =>
-                                deleteKickback(
-                                  kickback.id
-                                )
-                              }
-                              disabled={
-                                deletingId ===
-                                kickback.id
-                              }
-                              title="Delete Kickback"
-                              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-red-900/50 dark:bg-charcoal-900 dark:text-red-400 dark:hover:bg-red-950/30"
-                            >
-                              {deletingId ===
-                              kickback.id ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <Trash2 className="h-4 w-4" />
+                          <td className="whitespace-nowrap px-5 py-4 text-sm text-charcoal-600 dark:text-charcoal-300">
+                            {formatDate(
+                              kickback.transaction_date
+                            )}
+                          </td>
+
+                          <td className="px-5 py-4">
+                            <div className="max-w-[180px] truncate text-sm font-medium text-charcoal-800 dark:text-charcoal-200">
+                              {getCustomerName(
+                                kickback
                               )}
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                            </div>
+                          </td>
+
+                          <td className="px-5 py-4">
+                            <div className="max-w-[220px] truncate text-sm text-charcoal-600 dark:text-charcoal-300">
+                              {
+                                kickback.description
+                              }
+                            </div>
+                          </td>
+
+                          <td className="whitespace-nowrap px-5 py-4">
+                            {kickback.vat_enabled ? (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300">
+                                <Power className="h-3 w-3" />
+                                ON{" "}
+                                {
+                                  kickback.vat_rate
+                                }
+                                %
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-charcoal-100 px-2.5 py-1 text-xs font-semibold text-charcoal-600 dark:bg-charcoal-800 dark:text-charcoal-300">
+                                OFF
+                              </span>
+                            )}
+                          </td>
+
+                          <td className="whitespace-nowrap px-5 py-4 text-right text-sm font-medium text-charcoal-800 dark:text-charcoal-200">
+                            {formatCurrency(
+                              Number(
+                                kickback.amount ||
+                                  0
+                              )
+                            )}
+                          </td>
+
+                          <td className="whitespace-nowrap px-5 py-4 text-right text-sm font-bold text-charcoal-950 dark:text-white">
+                            {formatCurrency(total)}
+                          </td>
+
+                          <td className="whitespace-nowrap px-5 py-4">
+                            <div className="flex items-center justify-end gap-2">
+                              <KickbackPDFDownloadButton
+                                kickback={{
+                                  reference:
+                                    kickback.reference,
+                                  transaction_date:
+                                    kickback.transaction_date,
+                                  description:
+                                    kickback.description,
+                                  amount: Number(
+                                    kickback.amount ||
+                                      0
+                                  ),
+                                  notes:
+                                    kickback.notes,
+                                  vat_enabled:
+                                    kickback.vat_enabled,
+                                  vat_rate: Number(
+                                    kickback.vat_rate ||
+                                      15
+                                  ),
+                                  customer:
+                                    kickback.customer ||
+                                    null,
+                                  job: kickback.job
+                                    ? {
+                                        job_number:
+                                          kickback
+                                            .job
+                                            .job_number,
+                                        job_type:
+                                          kickback
+                                            .job
+                                            .job_type,
+                                        description:
+                                          kickback
+                                            .job
+                                            .description,
+                                      }
+                                    : null,
+                                  items:
+                                    kickback.items,
+                                }}
+                                onError={(
+                                  downloadError
+                                ) =>
+                                  setError(
+                                    downloadError
+                                  )
+                                }
+                              />
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  openEditModal(
+                                    kickback
+                                  )
+                                }
+                                title="Edit Kickback"
+                                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-charcoal-200 bg-white text-charcoal-700 transition hover:border-cyan-500 hover:bg-cyan-50 hover:text-cyan-700 dark:border-charcoal-700 dark:bg-charcoal-900 dark:text-charcoal-200 dark:hover:border-cyan-500 dark:hover:bg-cyan-950/30"
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  deleteKickback(
+                                    kickback.id
+                                  )
+                                }
+                                disabled={
+                                  deletingId ===
+                                  kickback.id
+                                }
+                                title="Delete Kickback"
+                                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-red-900/50 dark:bg-charcoal-900 dark:text-red-400 dark:hover:bg-red-950/30"
+                              >
+                                {deletingId ===
+                                kickback.id ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Trash2 className="h-4 w-4" />
+                                )}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    }
+                  )}
                 </tbody>
               </table>
             </div>
@@ -1103,7 +1373,7 @@ export default function KickbackPage() {
                 y: 20,
                 scale: 0.98,
               }}
-              className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl dark:bg-charcoal-900"
+              className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white shadow-2xl dark:bg-charcoal-900"
             >
               <div className="sticky top-0 z-10 flex items-center justify-between border-b border-charcoal-200 bg-white px-6 py-4 dark:border-charcoal-800 dark:bg-charcoal-900">
                 <div>
@@ -1133,24 +1403,25 @@ export default function KickbackPage() {
                 onSubmit={saveKickback}
                 className="space-y-5 p-6"
               >
+                {/* REFERENCE + DATE */}
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
                     <label className="mb-1.5 block text-sm font-medium text-charcoal-800 dark:text-charcoal-200">
-                      Reference
+                      Kickback Number
                     </label>
 
                     <input
                       type="text"
                       value={form.reference}
-                      onChange={(event) =>
-                        updateForm(
-                          "reference",
-                          event.target.value
-                        )
-                      }
-                      placeholder="e.g. KB-0001"
-                      className="w-full rounded-xl border border-charcoal-200 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 dark:border-charcoal-700 dark:bg-charcoal-950 dark:text-white"
+                      readOnly
+                      className="w-full rounded-xl border border-charcoal-200 bg-charcoal-50 px-3.5 py-2.5 text-sm font-semibold text-charcoal-700 outline-none dark:border-charcoal-700 dark:bg-charcoal-950 dark:text-charcoal-200"
                     />
+
+                    {!editingId && (
+                      <p className="mt-1 text-xs text-charcoal-500 dark:text-charcoal-400">
+                        Automatically generated.
+                      </p>
+                    )}
                   </div>
 
                   <div>
@@ -1172,6 +1443,7 @@ export default function KickbackPage() {
                   </div>
                 </div>
 
+                {/* JOB */}
                 <div>
                   <label className="mb-1.5 block text-sm font-medium text-charcoal-800 dark:text-charcoal-200">
                     Job
@@ -1211,6 +1483,7 @@ export default function KickbackPage() {
                   </select>
                 </div>
 
+                {/* DESCRIPTION */}
                 <div>
                   <label className="mb-1.5 block text-sm font-medium text-charcoal-800 dark:text-charcoal-200">
                     Description
@@ -1230,36 +1503,186 @@ export default function KickbackPage() {
                   />
                 </div>
 
-                <div>
-                  <label className="mb-1.5 block text-sm font-medium text-charcoal-800 dark:text-charcoal-200">
-                    Base Kickback Amount
-                  </label>
+                {/* MULTIPLE ITEMS */}
+                <div className="rounded-2xl border border-charcoal-200 bg-charcoal-50/50 p-4 dark:border-charcoal-700 dark:bg-charcoal-950/50">
+                  <div className="mb-4 flex items-center justify-between gap-3">
+                    <div>
+                      <h3 className="text-sm font-bold text-charcoal-900 dark:text-white">
+                        Kickback Items
+                      </h3>
 
-                  <div className="relative">
-                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-charcoal-400">
-                      R
-                    </span>
+                      <p className="mt-1 text-xs text-charcoal-500 dark:text-charcoal-400">
+                        Add one or more materials/items to
+                        this kickback.
+                      </p>
+                    </div>
 
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={form.amount}
-                      onChange={(event) =>
-                        updateForm(
-                          "amount",
-                          event.target.value
-                        )
-                      }
-                      placeholder="0.00"
-                      className="w-full rounded-xl border border-charcoal-200 bg-white py-2.5 pl-8 pr-3.5 text-sm outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 dark:border-charcoal-700 dark:bg-charcoal-950 dark:text-white"
-                    />
+                    <button
+                      type="button"
+                      onClick={addItem}
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-cyan-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-cyan-700"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Add Item
+                    </button>
                   </div>
 
-                  <p className="mt-1 text-xs text-charcoal-500 dark:text-charcoal-400">
-                    VAT is added on top of this amount
-                    when enabled.
-                  </p>
+                  <div className="space-y-3">
+                    {formItems.map(
+                      (item, index) => {
+                        const quantity =
+                          Number(
+                            item.quantity_kg ||
+                              0
+                          );
+
+                        const rate =
+                          Number(
+                            item.rate_per_kg ||
+                              0
+                          );
+
+                        const lineTotal =
+                          quantity * rate;
+
+                        return (
+                          <div
+                            key={index}
+                            className="rounded-xl border border-charcoal-200 bg-white p-4 dark:border-charcoal-700 dark:bg-charcoal-900"
+                          >
+                            <div className="mb-3 flex items-center justify-between">
+                              <span className="text-xs font-bold uppercase tracking-wide text-charcoal-500">
+                                Item {index + 1}
+                              </span>
+
+                              {formItems.length >
+                                1 && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    removeItem(
+                                      index
+                                    )
+                                  }
+                                  className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-red-600 transition hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/30"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                  Remove
+                                </button>
+                              )}
+                            </div>
+
+                            <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_150px_150px_140px]">
+                              <div>
+                                <label className="mb-1.5 block text-xs font-medium text-charcoal-700 dark:text-charcoal-300">
+                                  Description
+                                </label>
+
+                                <input
+                                  type="text"
+                                  value={
+                                    item.description
+                                  }
+                                  onChange={(event) =>
+                                    updateItem(
+                                      index,
+                                      "description",
+                                      event.target
+                                        .value
+                                    )
+                                  }
+                                  placeholder="e.g. Scrap metal"
+                                  className="w-full rounded-lg border border-charcoal-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 dark:border-charcoal-700 dark:bg-charcoal-950 dark:text-white"
+                                />
+                              </div>
+
+                              <div>
+                                <label className="mb-1.5 block text-xs font-medium text-charcoal-700 dark:text-charcoal-300">
+                                  Quantity (kg)
+                                </label>
+
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={
+                                    item.quantity_kg
+                                  }
+                                  onChange={(event) =>
+                                    updateItem(
+                                      index,
+                                      "quantity_kg",
+                                      event.target
+                                        .value
+                                    )
+                                  }
+                                  placeholder="0"
+                                  className="w-full rounded-lg border border-charcoal-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 dark:border-charcoal-700 dark:bg-charcoal-950 dark:text-white"
+                                />
+                              </div>
+
+                              <div>
+                                <label className="mb-1.5 block text-xs font-medium text-charcoal-700 dark:text-charcoal-300">
+                                  Rate / kg
+                                </label>
+
+                                <div className="relative">
+                                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-charcoal-400">
+                                    R
+                                  </span>
+
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={
+                                      item.rate_per_kg
+                                    }
+                                    onChange={(
+                                      event
+                                    ) =>
+                                      updateItem(
+                                        index,
+                                        "rate_per_kg",
+                                        event.target
+                                          .value
+                                      )
+                                    }
+                                    placeholder="0.00"
+                                    className="w-full rounded-lg border border-charcoal-200 bg-white py-2.5 pl-7 pr-3 text-sm outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 dark:border-charcoal-700 dark:bg-charcoal-950 dark:text-white"
+                                  />
+                                </div>
+                              </div>
+
+                              <div>
+                                <label className="mb-1.5 block text-xs font-medium text-charcoal-700 dark:text-charcoal-300">
+                                  Line Total
+                                </label>
+
+                                <div className="flex h-[42px] items-center rounded-lg border border-charcoal-200 bg-charcoal-50 px-3 text-sm font-bold text-charcoal-800 dark:border-charcoal-700 dark:bg-charcoal-950 dark:text-white">
+                                  {formatCurrency(
+                                    lineTotal
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      }
+                    )}
+                  </div>
+
+                  <div className="mt-4 flex items-center justify-between border-t border-charcoal-200 pt-4 dark:border-charcoal-700">
+                    <span className="text-sm font-semibold text-charcoal-700 dark:text-charcoal-300">
+                      Items Total
+                    </span>
+
+                    <span className="text-lg font-bold text-charcoal-950 dark:text-white">
+                      {formatCurrency(
+                        calculatedItemsTotal
+                      )}
+                    </span>
+                  </div>
                 </div>
 
                 {/* VAT */}
@@ -1294,7 +1717,9 @@ export default function KickbackPage() {
                           !form.vat_enabled
                         )
                       }
-                      aria-pressed={form.vat_enabled}
+                      aria-pressed={
+                        form.vat_enabled
+                      }
                       className={`relative h-7 w-12 rounded-full transition ${
                         form.vat_enabled
                           ? "bg-cyan-600"
