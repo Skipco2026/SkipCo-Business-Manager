@@ -8,7 +8,6 @@ import {
   type ReactNode,
 } from "react";
 import { useParams, useRouter } from "next/navigation";
-
 import {
   ArrowLeft,
   Check,
@@ -18,22 +17,17 @@ import {
   PenLine,
   Save,
 } from "lucide-react";
-
 import { pdf } from "@react-pdf/renderer";
-
 import {
   DisposalCertificatePDF,
   type DisposalCertificatePDFData,
 } from "@/components/pdf/DisposalCertificatePDF";
-
 import { DashboardShell } from "@/components/layout/dashboard-shell";
-
 import MasterOptionTable from "@/components/disposal/MasterOptionTable";
-
 import { createClient } from "@/lib/supabase/client";
 
 /* =======================================================
-   TYPES
+TYPES
 ======================================================= */
 
 interface Customer {
@@ -83,49 +77,39 @@ interface DisposalCertificate {
   job_id: string;
   reference_number: string;
   order_number: string | null;
-
   collection_status: "Pending" | "Signed";
-
   collected_by: string | null;
   collection_date: string | null;
   collection_location: string | null;
-
   collection_sites: CollectionListItem[] | null;
   waste_types: CollectionListItem[] | null;
   packagings: CollectionListItem[] | null;
-
   client_name: string | null;
   client_signature: string | null;
   client_signed_at: string | null;
-
   waste_type: string | null;
   quantity_volume: string | null;
   packaging: string | null;
   condition_at_receipt: string | null;
-
   disposal_method: string | null;
   disposal_facility_name: string | null;
   disposal_facility_address: string | null;
   disposal_date: string | null;
-
   disposal_facilities: DisposalFacilityItem[] | null;
   disposal_methods: DisposalMethodItem[] | null;
-
   facility_representative: string | null;
   facility_signature: string | null;
   facility_signed_at: string | null;
-
   certificate_status:
     | "Pending"
     | "Collection Signed"
     | "Completed";
-
   created_at?: string;
   updated_at?: string;
 }
 
 /* =======================================================
-   HELPERS
+HELPERS
 ======================================================= */
 
 function formatDate(value: string | null | undefined) {
@@ -239,7 +223,7 @@ function normaliseFacilities(
 }
 
 /* =======================================================
-   SIGNATURE PAD
+SIGNATURE PAD
 ======================================================= */
 
 function SignaturePad({
@@ -309,7 +293,8 @@ function SignaturePad({
 
     if (!canvas) return;
 
-    const position = getPosition(event);
+    const position =
+      getPosition(event);
 
     const context =
       canvas.getContext("2d");
@@ -317,6 +302,7 @@ function SignaturePad({
     if (!context) return;
 
     context.beginPath();
+
     context.moveTo(
       position.x,
       position.y
@@ -339,7 +325,8 @@ function SignaturePad({
 
     if (!canvas) return;
 
-    const position = getPosition(event);
+    const position =
+      getPosition(event);
 
     const context =
       canvas.getContext("2d");
@@ -393,12 +380,26 @@ function SignaturePad({
   useEffect(() => {
     const canvas = getCanvas();
 
-    if (!canvas || !value) return;
+    if (!canvas) return;
 
     const context =
       canvas.getContext("2d");
 
     if (!context) return;
+
+    if (!value) {
+      context.clearRect(
+        0,
+        0,
+        canvas.width,
+        canvas.height
+      );
+
+      setHasDrawn(false);
+      return;
+    }
+
+    setHasDrawn(true);
 
     const image = new Image();
 
@@ -458,18 +459,12 @@ function SignaturePad({
           </button>
         </div>
       )}
-
-      {disabled && (
-        <div className="border-t border-gray-200 bg-gray-50 px-4 py-2 text-xs text-green-600">
-          Existing signature preserved.
-        </div>
-      )}
     </div>
   );
 }
 
 /* =======================================================
-   PAGE
+PAGE
 ======================================================= */
 
 export default function DisposalCertificatePage() {
@@ -485,14 +480,7 @@ export default function DisposalCertificatePage() {
       : "";
 
   /* =======================================================
-     CERTIFICATE REFERENCE GENERATOR
-     
-     NEW:
-     JOB-136987 -> DC-JOB136987
-
-     Existing certificate references are preserved because
-     this function is only called when certificate is null
-     or when an existing reference is missing.
+  CERTIFICATE REFERENCE GENERATOR
   ======================================================= */
 
   async function generateUniqueCertificateNumber(
@@ -504,11 +492,6 @@ export default function DisposalCertificatePage() {
 
     const baseReference =
       `DC-${cleanJobNumber}`;
-
-    /*
-     * Check whether the exact new reference
-     * already exists.
-     */
 
     const {
       data,
@@ -528,19 +511,9 @@ export default function DisposalCertificatePage() {
       );
     }
 
-    /*
-     * No duplicate.
-     */
-
     if (!data || data.length === 0) {
       return baseReference;
     }
-
-    /*
-     * Extremely unlikely duplicate fallback.
-     *
-     * Existing certificate remains untouched.
-     */
 
     let attempt = 2;
 
@@ -580,12 +553,6 @@ export default function DisposalCertificatePage() {
       "Unable to generate a unique Certificate of Disposal reference number."
     );
   }
-
-  /*
-   * Synchronous display-only fallback.
-   *
-   * This does NOT save anything.
-   */
 
   function getDisplayCertificateReference(
     jobNumber: string
@@ -632,9 +599,9 @@ export default function DisposalCertificatePage() {
   const [clientSignature, setClientSignature] =
     useState("");
 
-  /*
-   * MASTER LIST SELECTIONS
-   */
+  /* =======================================================
+  MASTER LIST SELECTIONS
+  ======================================================= */
 
   const [collectionSites, setCollectionSites] =
     useState<string[]>([]);
@@ -651,9 +618,9 @@ export default function DisposalCertificatePage() {
   const [disposalMethods, setDisposalMethods] =
     useState<string[]>([]);
 
-  /*
-   * FACILITY ADDRESSES
-   */
+  /* =======================================================
+  FACILITY ADDRESSES
+  ======================================================= */
 
   const [facilityAddresses, setFacilityAddresses] =
     useState<Record<string, string>>({});
@@ -661,16 +628,16 @@ export default function DisposalCertificatePage() {
   const [quantityVolume, setQuantityVolume] =
     useState("");
 
-  /*
-   * COLLECTION DATE
-   */
+  /* =======================================================
+  COLLECTION DATE
+  ======================================================= */
 
   const [collectionDate, setCollectionDate] =
     useState("");
 
-  /*
-   * DISPOSAL DATE
-   */
+  /* =======================================================
+  DISPOSAL DATE
+  ======================================================= */
 
   const [disposalDate, setDisposalDate] =
     useState("");
@@ -695,7 +662,7 @@ export default function DisposalCertificatePage() {
     useState("");
 
   /* =======================================================
-     LOAD
+  LOAD
   ======================================================= */
 
   useEffect(() => {
@@ -828,12 +795,6 @@ export default function DisposalCertificatePage() {
           const cert =
             certificateData as DisposalCertificate;
 
-          /*
-           * IMPORTANT:
-           * Existing certificate reference is
-           * restored exactly as stored.
-           */
-
           setCertificate(cert);
 
           setCollectionDate(
@@ -849,6 +810,11 @@ export default function DisposalCertificatePage() {
           setClientName(
             cert.client_name || ""
           );
+
+          /*
+           * EXISTING CLIENT SIGNATURE
+           * IS RESTORED EXACTLY AS STORED.
+           */
 
           setClientSignature(
             cert.client_signature || ""
@@ -942,6 +908,11 @@ export default function DisposalCertificatePage() {
               ""
           );
 
+          /*
+           * EXISTING FACILITY SIGNATURE
+           * IS RESTORED EXACTLY AS STORED.
+           */
+
           setFacilitySignature(
             cert.facility_signature ||
               ""
@@ -949,6 +920,8 @@ export default function DisposalCertificatePage() {
         } else {
           /*
            * NEW CERTIFICATE
+           *
+           * Start with blank signatures.
            */
 
           setCollectionDate(
@@ -962,6 +935,12 @@ export default function DisposalCertificatePage() {
           } else {
             setCollectionSites([]);
           }
+
+          setClientSignature("");
+          setFacilitySignature("");
+
+          setClientName("");
+          setFacilityRepresentative("");
 
           setCertificate(null);
         }
@@ -982,7 +961,7 @@ export default function DisposalCertificatePage() {
   }, [jobId]);
 
   /* =======================================================
-     STATUS
+  STATUS
   ======================================================= */
 
   const collectionSigned =
@@ -1000,7 +979,7 @@ export default function DisposalCertificatePage() {
     facilitySigned;
 
   /* =======================================================
-     FACILITY HELPERS
+  FACILITY HELPERS
   ======================================================= */
 
   function handleFacilitySelection(
@@ -1038,7 +1017,7 @@ export default function DisposalCertificatePage() {
   }
 
   /* =======================================================
-     SAVE CERTIFICATE EDITS
+  SAVE CERTIFICATE EDITS
   ======================================================= */
 
   async function saveCertificateEdits() {
@@ -1123,16 +1102,6 @@ export default function DisposalCertificatePage() {
       const now =
         new Date().toISOString();
 
-      /*
-       * IMPORTANT:
-       *
-       * If the certificate already exists,
-       * preserve its exact existing reference.
-       *
-       * If this is a new certificate, generate
-       * a new DC-JOB... reference.
-       */
-
       const referenceNumber =
         certificate?.reference_number ||
         await generateUniqueCertificateNumber(
@@ -1205,14 +1174,17 @@ export default function DisposalCertificatePage() {
           disposalDate,
 
         /*
-         * PRESERVE COLLECTION SIGNATURE
+         * KEEP EXISTING SIGNATURE IF THERE IS ONE.
+         * OTHERWISE USE THE CURRENT SIGNATURE STATE.
          */
 
         client_name:
+          clientName.trim() ||
           certificate?.client_name ||
           null,
 
         client_signature:
+          clientSignature ||
           certificate?.client_signature ||
           null,
 
@@ -1220,15 +1192,13 @@ export default function DisposalCertificatePage() {
           certificate?.client_signed_at ||
           null,
 
-        /*
-         * PRESERVE FACILITY SIGNATURE
-         */
-
         facility_representative:
+          facilityRepresentative.trim() ||
           certificate?.facility_representative ||
           null,
 
         facility_signature:
+          facilitySignature ||
           certificate?.facility_signature ||
           null,
 
@@ -1297,6 +1267,18 @@ export default function DisposalCertificatePage() {
         savedCertificate
       );
 
+      setClientSignature(
+        savedCertificate?.client_signature ||
+          clientSignature ||
+          ""
+      );
+
+      setFacilitySignature(
+        savedCertificate?.facility_signature ||
+          facilitySignature ||
+          ""
+      );
+
       setCollectionDate(
         savedCertificate?.collection_date ||
           collectionDate ||
@@ -1328,7 +1310,7 @@ export default function DisposalCertificatePage() {
       );
 
       setSuccess(
-        "Disposal Certificate updated successfully. Existing signatures were preserved."
+        "Disposal Certificate updated successfully."
       );
 
       setEditing(false);
@@ -1344,7 +1326,7 @@ export default function DisposalCertificatePage() {
   }
 
   /* =======================================================
-     SIGN COLLECTION
+  SIGN COLLECTION
   ======================================================= */
 
   async function signCollection() {
@@ -1417,13 +1399,6 @@ export default function DisposalCertificatePage() {
       const currentFacilities =
         getFacilityItems();
 
-      /*
-       * Preserve an existing certificate reference.
-       *
-       * If there is no certificate yet,
-       * create the new DC-JOB... reference.
-       */
-
       const referenceNumber =
         certificate?.reference_number ||
         await generateUniqueCertificateNumber(
@@ -1489,10 +1464,6 @@ export default function DisposalCertificatePage() {
 
         packaging:
           validPackagings[0],
-
-        /*
-         * Preserve existing disposal data.
-         */
 
         disposal_method:
           certificate?.disposal_method ||
@@ -1584,7 +1555,7 @@ export default function DisposalCertificatePage() {
   }
 
   /* =======================================================
-     SIGN FACILITY
+  SIGN FACILITY
   ======================================================= */
 
   async function signFacility() {
@@ -1764,7 +1735,7 @@ export default function DisposalCertificatePage() {
   }
 
   /* =======================================================
-     SAVE JOB STATUS
+  SAVE JOB STATUS
   ======================================================= */
 
   async function saveJobStatus() {
@@ -1830,7 +1801,7 @@ export default function DisposalCertificatePage() {
   }
 
   /* =======================================================
-     PDF DATA
+  PDF DATA
   ======================================================= */
 
   const pdfData:
@@ -1946,7 +1917,7 @@ export default function DisposalCertificatePage() {
       : null;
 
   /* =======================================================
-     DOWNLOAD PDF
+  DOWNLOAD PDF
   ======================================================= */
 
   async function downloadPDF() {
@@ -2023,7 +1994,7 @@ export default function DisposalCertificatePage() {
   }
 
   /* =======================================================
-     SELECTED VALUES
+  SELECTED VALUES
   ======================================================= */
 
   function SelectedValues({
@@ -2057,7 +2028,7 @@ export default function DisposalCertificatePage() {
   }
 
   /* =======================================================
-     LOADING
+  LOADING
   ======================================================= */
 
   if (loading) {
@@ -2077,7 +2048,7 @@ export default function DisposalCertificatePage() {
   }
 
   /* =======================================================
-     NO JOB
+  NO JOB
   ======================================================= */
 
   if (!job) {
@@ -2095,7 +2066,7 @@ export default function DisposalCertificatePage() {
   }
 
   /* =======================================================
-     RENDER
+  RENDER
   ======================================================= */
 
   return (
@@ -2214,8 +2185,7 @@ export default function DisposalCertificatePage() {
             Select existing master options or
             use <strong>ADD</strong> at the top
             of each list to create a new reusable
-            option. Existing signatures will be
-            preserved.
+            option.
           </div>
         )}
 
@@ -2314,7 +2284,6 @@ export default function DisposalCertificatePage() {
               </p>
 
             </div>
-
           </div>
         </div>
 
@@ -2543,11 +2512,6 @@ export default function DisposalCertificatePage() {
                   <h4 className="text-sm font-bold uppercase tracking-wide text-gray-900">
                     Collection Sign-off
                   </h4>
-
-                  <p className="mt-1 text-xs text-gray-500">
-                    Existing signature information
-                    is preserved.
-                  </p>
                 </div>
 
                 {collectionSigned && (
@@ -2600,9 +2564,10 @@ export default function DisposalCertificatePage() {
                     onChange={
                       setClientSignature
                     }
-                    disabled={Boolean(
-                      clientSignature
-                    )}
+                    disabled={
+                      collectionSigned &&
+                      !editing
+                    }
                   />
 
                 </div>
@@ -2945,9 +2910,10 @@ export default function DisposalCertificatePage() {
                     onChange={
                       setFacilitySignature
                     }
-                    disabled={Boolean(
-                      facilitySignature
-                    )}
+                    disabled={
+                      certificateCompleted &&
+                      !editing
+                    }
                   />
 
                 </div>

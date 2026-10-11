@@ -37,6 +37,7 @@ export interface KickbackPDFData {
   reference?: string | null;
   transaction_date?: string | null;
   description?: string | null;
+  site?: string | null;
   amount?: number | null;
   notes?: string | null;
 
@@ -187,7 +188,7 @@ const styles = StyleSheet.create({
   },
 
   /* =========================
-     DESCRIPTION
+     DESCRIPTION AND SITE
   ========================= */
 
   descriptionSection: {
@@ -497,7 +498,6 @@ export default function KickbackPDF({
 
         {/* =========================
             CUSTOMER / JOB DETAILS
-            IMPORTANT:
             Job Type and Job Description
             are intentionally NOT shown.
         ========================= */}
@@ -564,19 +564,38 @@ export default function KickbackPDF({
 
         {/* =========================
             KICKBACK DESCRIPTION
-            This is the kickback transaction
-            description, NOT the job description.
+            Site appears directly underneath.
         ========================= */}
 
-        {kickback.description && (
+        {(kickback.description || kickback.site) && (
           <View style={styles.descriptionSection}>
-            <Text style={styles.descriptionHeading}>
-              Description
-            </Text>
+            {kickback.description && (
+              <>
+                <Text style={styles.descriptionHeading}>
+                  Description
+                </Text>
 
-            <Text style={styles.descriptionText}>
-              {kickback.description}
-            </Text>
+                <Text style={styles.descriptionText}>
+                  {kickback.description}
+                </Text>
+              </>
+            )}
+
+            {kickback.site && (
+              <View
+                style={{
+                  marginTop: kickback.description ? 8 : 0,
+                }}
+              >
+                <Text style={styles.descriptionHeading}>
+                  Site
+                </Text>
+
+                <Text style={styles.descriptionText}>
+                  {kickback.site}
+                </Text>
+              </View>
+            )}
           </View>
         )}
 
