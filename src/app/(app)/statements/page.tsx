@@ -5,6 +5,7 @@ import {
   CalendarDays,
   Check,
   CheckCircle2,
+  Download,
   FileText,
   Loader2,
   Search,
@@ -13,10 +14,10 @@ import {
 } from "lucide-react";
 
 import {
+  pdf,
   Document,
   Image,
   Page,
-  PDFDownloadLink,
   StyleSheet,
   Text,
   View,
@@ -74,6 +75,7 @@ interface SavedStatement {
   total_kickbacks: number;
   balance_due: number;
   created_at: string;
+  invoice_ids?: string[] | null;
 }
 
 function getTodayString() {
@@ -815,6 +817,8 @@ export default function StatementsPage() {
     useState(false);
   const [deletingStatementId, setDeletingStatementId] =
     useState<string | null>(null);
+  const [downloadingStatementId, setDownloadingStatementId] =
+    useState<string | null>(null);
 
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -1208,6 +1212,7 @@ export default function StatementsPage() {
             start_date: startDate,
             end_date: endDate,
             total_invoices: totalInvoices,
+            invoice_ids: displayedInvoices.map((invoice) => invoice.id),
             total_kickbacks: totalKickbacks,
             balance_due: balanceDue,
           })
@@ -1329,6 +1334,116 @@ export default function StatementsPage() {
       );
     } finally {
       setSavingStatement(false);
+    }
+  }
+
+
+  async function downloadFinalizedStatement(
+    statement: SavedStatement
+  ) {
+    setDownloadingStatementId(statement.id);
+    setError("");
+
+    try {
+      const customer = customers.find(
+        (item) => item.id === statement.customer_id
+      );
+
+      if (!customer) {
+        throw new Error(
+          "The customer for this statement could not be found."
+        );
+      }
+
+      let invoiceQuery = supabase
+        .from("invoices")
+        .select("*")
+        .eq("customer_id", statement.customer_id);
+
+      if (
+        Array.isArray(statement.invoice_ids) &&
+        statement.invoice_ids.length > 0
+      ) {
+        invoiceQuery = invoiceQuery.in(
+          "id",
+          statement.invoice_ids
+        );
+      } else {
+        // Older statements do not have saved invoice IDs.
+        invoiceQuery = invoiceQuery
+          .gte("invoice_date", statement.start_date)
+          .lte("invoice_date", statement.end_date);
+      }
+
+      const { data: invoiceData, error: invoiceError } =
+        await invoiceQuery.order("invoice_date", {
+          ascending: true,
+        });
+
+      if (invoiceError) {
+        throw new Error(
+          `Unable to load statement invoices: ${invoiceError.message}`
+        );
+      }
+
+      const { data: kickbackData, error: kickbackError } =
+        await supabase
+          .from("financial_transactions")
+          .select(
+            "id, transaction_date, reference, description, amount, customer_id, job_id, notes, created_at"
+          )
+          .eq("customer_id", statement.customer_id)
+          .eq("type", "kickback")
+          .eq("statement_id", statement.id)
+          .order("transaction_date", {
+            ascending: true,
+          });
+
+      if (kickbackError) {
+        throw new Error(
+          `Unable to load statement kickbacks: ${kickbackError.message}`
+        );
+      }
+
+      const blob = await pdf(
+        <StatementPDF
+          customer={customer}
+          invoices={(invoiceData ?? []) as Invoice[]}
+          kickbacks={(kickbackData ?? []) as Kickback[]}
+          totalInvoices={Number(statement.total_invoices || 0)}
+          totalKickbacks={Number(statement.total_kickbacks || 0)}
+          balanceDue={Number(statement.balance_due || 0)}
+          statementDate={statement.statement_date}
+          startDate={statement.start_date}
+          endDate={statement.end_date}
+        />
+      ).toBlob();
+
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      const safeCustomerName = customer.company_name
+        .replace(/[^a-z0-9_-]+/gi, "-")
+        .replace(/^-+|-+$/g, "");
+
+      link.href = url;
+      link.download =
+        `Statement-${safeCustomerName || "Customer"}-${statement.statement_date}.pdf`;
+
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (downloadError) {
+      console.error("Statement PDF download error:", downloadError);
+
+      setError(
+        downloadError instanceof Error
+          ? downloadError.message
+          : "Unable to download the statement PDF."
+      );
+    } finally {
+      setDownloadingStatementId(null);
     }
   }
 
@@ -1678,51 +1793,7 @@ export default function StatementsPage() {
                 Clear
               </button>
 
-              {pdfReady ? (
-                <PDFDownloadLink
-                  document={
-                    <StatementPDF
-                      customer={selectedCustomer}
-                      invoices={displayedInvoices}
-                      kickbacks={selectedKickbacks}
-                      totalInvoices={totalInvoices}
-                      totalKickbacks={totalKickbacks}
-                      balanceDue={balanceDue}
-                      statementDate={statementDate}
-                      startDate={startDate}
-                      endDate={endDate}
-                    />
-                  }
-                  fileName={pdfFileName}
-                >
-                  {({
-                    loading: pdfLoading,
-                  }) => (
-                    <span
-                      className={`inline-flex items-center gap-2 rounded-lg bg-charcoal-900 px-4 py-2.5 text-sm font-medium text-white ${
-                        pdfLoading
-                          ? "cursor-wait opacity-60"
-                          : "hover:bg-charcoal-800"
-                      }`}
-                    >
-                      <FileText className="h-4 w-4" />
 
-                      {pdfLoading
-                        ? "Preparing..."
-                        : "Download PDF"}
-                    </span>
-                  )}
-                </PDFDownloadLink>
-              ) : (
-                <button
-                  type="button"
-                  disabled
-                  className="inline-flex cursor-not-allowed items-center gap-2 rounded-lg bg-charcoal-900 px-4 py-2.5 text-sm font-medium text-white opacity-50"
-                >
-                  <FileText className="h-4 w-4" />
-                  Download PDF
-                </button>
-              )}
             </div>
           </div>
 
@@ -2491,7 +2562,29 @@ export default function StatementsPage() {
                             </td>
 
                             <td className="px-4 py-4 text-right">
-                              <button
+                              <div className="flex items-center justify-end gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    downloadFinalizedStatement(statement)
+                                  }
+                                  disabled={
+                                    downloadingStatementId === statement.id ||
+                                    deletingStatementId === statement.id
+                                  }
+                                  className="inline-flex items-center gap-2 rounded-lg border border-charcoal-200 px-3 py-2 text-xs font-medium text-charcoal-700 hover:bg-charcoal-50 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  {downloadingStatementId === statement.id ? (
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  ) : (
+                                    <Download className="h-3.5 w-3.5" />
+                                  )}
+                                  {downloadingStatementId === statement.id
+                                    ? "Preparing..."
+                                    : "Download PDF"}
+                                </button>
+
+                                <button
                                 type="button"
                                 onClick={() =>
                                   deleteStatement(
@@ -2516,6 +2609,7 @@ export default function StatementsPage() {
                                   ? "Deleting..."
                                   : "Delete"}
                               </button>
+                              </div>
                             </td>
                           </tr>
                         );
