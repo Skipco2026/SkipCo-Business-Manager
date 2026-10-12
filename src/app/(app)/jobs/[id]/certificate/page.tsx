@@ -2,6 +2,7 @@
 
 import {
   useEffect,
+  useRef,
   useState,
   type MouseEvent,
   type TouchEvent,
@@ -226,6 +227,7 @@ function normaliseFacilities(
 SIGNATURE PAD
 ======================================================= */
 
+
 function SignaturePad({
   value,
   onChange,
@@ -235,6 +237,9 @@ function SignaturePad({
   onChange: (value: string) => void;
   disabled?: boolean;
 }) {
+  const canvasRef =
+    useRef<HTMLCanvasElement | null>(null);
+
   const [drawing, setDrawing] =
     useState(false);
 
@@ -242,9 +247,7 @@ function SignaturePad({
     useState(Boolean(value));
 
   function getCanvas() {
-    return document.getElementById(
-      "signature-pad"
-    ) as HTMLCanvasElement | null;
+    return canvasRef.current;
   }
 
   function getPosition(
@@ -258,8 +261,7 @@ function SignaturePad({
       return { x: 0, y: 0 };
     }
 
-    const rect =
-      canvas.getBoundingClientRect();
+    const rect = canvas.getBoundingClientRect();
 
     if ("touches" in event) {
       const touch = event.touches[0];
@@ -269,14 +271,22 @@ function SignaturePad({
       }
 
       return {
-        x: touch.clientX - rect.left,
-        y: touch.clientY - rect.top,
+        x:
+          (touch.clientX - rect.left) *
+          (canvas.width / rect.width),
+        y:
+          (touch.clientY - rect.top) *
+          (canvas.height / rect.height),
       };
     }
 
     return {
-      x: event.clientX - rect.left,
-      y: event.clientY - rect.top,
+      x:
+        (event.clientX - rect.left) *
+        (canvas.width / rect.width),
+      y:
+        (event.clientY - rect.top) *
+        (canvas.height / rect.height),
     };
   }
 
@@ -290,23 +300,15 @@ function SignaturePad({
     event.preventDefault();
 
     const canvas = getCanvas();
-
     if (!canvas) return;
 
-    const position =
-      getPosition(event);
-
-    const context =
-      canvas.getContext("2d");
+    const position = getPosition(event);
+    const context = canvas.getContext("2d");
 
     if (!context) return;
 
     context.beginPath();
-
-    context.moveTo(
-      position.x,
-      position.y
-    );
+    context.moveTo(position.x, position.y);
 
     setDrawing(true);
     setHasDrawn(true);
@@ -322,14 +324,10 @@ function SignaturePad({
     event.preventDefault();
 
     const canvas = getCanvas();
-
     if (!canvas) return;
 
-    const position =
-      getPosition(event);
-
-    const context =
-      canvas.getContext("2d");
+    const position = getPosition(event);
+    const context = canvas.getContext("2d");
 
     if (!context) return;
 
@@ -338,16 +336,10 @@ function SignaturePad({
     context.lineJoin = "round";
     context.strokeStyle = "#111111";
 
-    context.lineTo(
-      position.x,
-      position.y
-    );
-
+    context.lineTo(position.x, position.y);
     context.stroke();
 
-    onChange(
-      canvas.toDataURL("image/png")
-    );
+    onChange(canvas.toDataURL("image/png"));
   }
 
   function stopDrawing() {
@@ -358,12 +350,9 @@ function SignaturePad({
     if (disabled) return;
 
     const canvas = getCanvas();
-
     if (!canvas) return;
 
-    const context =
-      canvas.getContext("2d");
-
+    const context = canvas.getContext("2d");
     if (!context) return;
 
     context.clearRect(
@@ -373,18 +362,16 @@ function SignaturePad({
       canvas.height
     );
 
+    setDrawing(false);
     setHasDrawn(false);
     onChange("");
   }
 
   useEffect(() => {
     const canvas = getCanvas();
-
     if (!canvas) return;
 
-    const context =
-      canvas.getContext("2d");
-
+    const context = canvas.getContext("2d");
     if (!context) return;
 
     if (!value) {
@@ -404,19 +391,27 @@ function SignaturePad({
     const image = new Image();
 
     image.onload = () => {
-      context.clearRect(
+      const currentCanvas = getCanvas();
+      if (!currentCanvas) return;
+
+      const currentContext =
+        currentCanvas.getContext("2d");
+
+      if (!currentContext) return;
+
+      currentContext.clearRect(
         0,
         0,
-        canvas.width,
-        canvas.height
+        currentCanvas.width,
+        currentCanvas.height
       );
 
-      context.drawImage(
+      currentContext.drawImage(
         image,
         0,
         0,
-        canvas.width,
-        canvas.height
+        currentCanvas.width,
+        currentCanvas.height
       );
     };
 
@@ -426,7 +421,7 @@ function SignaturePad({
   return (
     <div className="overflow-hidden rounded-xl border border-gray-300 bg-white">
       <canvas
-        id="signature-pad"
+        ref={canvasRef}
         width={700}
         height={220}
         className={`h-[180px] w-full touch-none ${
@@ -462,6 +457,7 @@ function SignaturePad({
     </div>
   );
 }
+
 
 /* =======================================================
 PAGE
