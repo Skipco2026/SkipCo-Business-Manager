@@ -644,60 +644,72 @@ export default function QuotePDF({
             </Text>
           </View>
 
-          {items.map((item, index) => (
-            <View
-              key={
-                item.id ??
-                `quote-item-${index}`
-              }
-              style={styles.tableRow}
-            >
-              <Text
-                style={[
-                  styles.tableText,
-                  styles.numberColumn,
-                ]}
-              >
-                {index + 1}
-              </Text>
+          {items.map((item, index) => {
+            const quantity = Number(item.quantity ?? 0);
+            const unitPrice = Number(item.unit_price ?? 0);
+            const lineTotal = quantity * unitPrice;
 
-              <Text
-                style={[
-                  styles.tableText,
-                  styles.descriptionColumn,
-                ]}
+            console.log("Quote PDF item:", {
+              description: item.description,
+              quantity,
+              unitPrice,
+              originalLineTotal: item.line_total,
+              calculatedLineTotal: lineTotal,
+            });
+            return (
+              <View
+                key={item.id ?? `quote-item-${index}`}
+                style={styles.tableRow}
               >
-                {item.description}
-              </Text>
+                <Text
+                  style={[
+                    styles.tableText,
+                    styles.numberColumn,
+                  ]}
+                >
+                  {index + 1}
+                </Text>
 
-              <Text
-                style={[
-                  styles.tableText,
-                  styles.quantityColumn,
-                ]}
-              >
-                {Number(item.quantity)}
-              </Text>
+                <Text
+                  style={[
+                    styles.tableText,
+                    styles.descriptionColumn,
+                  ]}
+                >
+                  {item.description}
+                </Text>
 
-              <Text
-                style={[
-                  styles.tableText,
-                  styles.priceColumn,
-                ]}
-              >
-                {formatCurrency(item.unit_price)}
-              </Text>
+                <Text
+                  style={[
+                    styles.tableText,
+                    styles.quantityColumn,
+                  ]}
+                >
+                  {Number(item.quantity ?? 0)}
+                </Text>
 
-              <Text
-                style={[
-                  styles.tableText,
-                  styles.totalColumn,
-                ]}
-              >
-                {formatCurrency(item.line_total)}
-              </Text>
-            </View>
-          ))}
+                <Text
+                  style={[
+                    styles.tableText,
+                    styles.priceColumn,
+                  ]}
+                >
+                  {formatCurrency(
+                    Number(item.unit_price ?? 0)
+                  )}
+                </Text>
+
+                <Text
+                  style={[
+                    styles.tableText,
+                    styles.totalColumn,
+                  ]}
+                >
+                  {formatCurrency(lineTotal)}
+                </Text>
+              </View>
+            );
+          })}
         </View>
 
         {/* TOTALS */}
